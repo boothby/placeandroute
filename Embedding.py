@@ -104,6 +104,7 @@ def embed(problemGraph, archGraph):
     for node in oldArchGraph.nodes_iter():
         oldArchGraph.node[node]["mapped"] = archGraph.node[node]["mapped"]
 
+from embed import embed
 
 def translate(lst, off):
     ox, oy = off
