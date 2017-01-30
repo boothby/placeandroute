@@ -2,7 +2,8 @@ from itertools import combinations, chain
 import networkx as nx
 
 
-def updateVertexWeight(node, aGraph, exponent=3000):
+
+def updateVertexWeight(node, aGraph, exponent=30):
     aGraph.node[node]["score"] = 0
     for nnode in aGraph.neighbors_iter(node):
         aGraph.edge[nnode][node]["weight"] *= exponent
@@ -20,7 +21,7 @@ def steinerTree(archGraph, voi):
     return nx.minimum_spanning_tree(steinerGraph,"weight")
 
 from SteinerTree import make_steiner_tree as steinerTree
-
+from random import shuffle
 
 def embed(problemGraph, archGraph):
     #partEmbedding = Chainmap()
@@ -41,13 +42,16 @@ def embed(problemGraph, archGraph):
     for vertex in archGraph.nodes_iter():
         archGraph.node[vertex]["mapped"] = []
 
-    for nextMappedNode in problemGraph.nodes_iter():
+    mappingorder = problemGraph.nodes()
+    shuffle(mappingorder)
+
+    for nextMappedNode in mappingorder:
         alreadyMappedNeighs = [x for x in problemGraph.neighbors_iter(nextMappedNode)
                               if len(problemGraph.node[x]["mapto"]) > 0]
         for vertex,data in archGraph.nodes_iter(data=True):
             archGraph.node[vertex]["score"] = (abs( data["x"] - avgx) + abs(data["y"] - avgy)
                                               # (1.0*(7-archGraph.degree(vertex)) )
-                                            + 100.0*len(data["mapped"]))
+                                            + 3000.0**len(data["mapped"]))
             #archGraph.node[vertex]["pred"] = dict()
 
         for mappedNeigh in alreadyMappedNeighs:
@@ -64,7 +68,7 @@ def embed(problemGraph, archGraph):
                 pred = preds[node]
                 score = distances[node]
                 if ephnode in pred:
-                    archGraph.node[node]["score"] = 1e100
+                    archGraph.node[node]["score"] = 1e10
                     #archGraph.node[node]["pred"][mappedNeigh] = None
                     continue
                 archGraph.node[node]["score"] += score
@@ -75,7 +79,7 @@ def embed(problemGraph, archGraph):
         #find minscore
         minnode = None
         for chooseme in archGraph.nodes_iter():
-            if chooseme == nextMappedNode:continue
+            #if chooseme == nextMappedNode:continue
             if minnode is None or archGraph.node[chooseme]["score"] < archGraph.node[minnode]["score"]:
                 minnode = chooseme
 
@@ -84,34 +88,36 @@ def embed(problemGraph, archGraph):
             #add ephnode
             ephnode = ("eph", mappedNeigh)
             voi.append(ephnode)
-            archGraph.add_node(ephnode);
-            for vertex in problemGraph.node[mappedNeigh]["mapto"]:
-                archGraph.add_edge(ephnode, vertex, weight=0)
-                archGraph.add_edge(vertex,ephnode, weight=0)
+            archGraph.add_node(ephnode)
+            termnodes = set()
+            mappedChain = problemGraph.node[mappedNeigh]["mapto"]
+            for vertex in mappedChain:
+                termnodes.update(archGraph.neighbors(vertex))
+            termnodes.difference_update(voi)
+            termnodes.difference_update(mappedChain)
+            for vertex in termnodes:
+                highnum = 1e10
+                archGraph.add_edge(ephnode, vertex, weight=highnum)
+                archGraph.add_edge(vertex,ephnode, weight=highnum)
 
         if len(voi) > 1:
             newchain = steinerTree(archGraph, voi) # type: nx.Graph
             for ephnode in voi[1:]:
                 archGraph.remove_node(ephnode)
-                newchain.remove_nodes_from(newchain.neighbors(ephnode))
+                #newchain.remove_nodes_from(newchain.neighbors(ephnode))
                 newchain.remove_node(ephnode)
             assert minnode in newchain
+            assert nx.is_connected(oldArchGraph.subgraph(newchain.nodes_iter()))
         else:
-            # if len(voi) == 1:
-            #     choosefrom = archGraph.neighbors(voi[0])
-            #     archGraph.remove_node(voi[0])
-            #     choosefrom2 = [archGraph.neighbors(x) for x in choosefrom]
-            #     choosefrom = [x for xlist in choosefrom2 for x in xlist if x not in choosefrom]
-            #     choosefrom = zip(choosefrom, (archGraph.node[x] for x in choosefrom))
-            # else:
-            #     choosefrom = archGraph.nodes_iter(data=True)
-            # newnode, _ = min(choosefrom, key=lambda (_,data): data["score"])
-            newnode = chooseme
+            newnode = minnode
             newchain = nx.Graph()
             newchain.add_node(newnode)
 
         chains = set(newchain.nodes_iter())
+        #debug_newneigh = set()
         for newnode in chains:
+            #assert any(x not in debug_newneigh for x in archGraph.neighbors(newnode))
+            #debug_newneigh.update(archGraph.neighbors(newnode))
             updateVertexWeight(newnode, archGraph)
             archGraph.node[newnode]["mapped"].append(nextMappedNode)
         problemGraph.node[nextMappedNode]["mapto"] = chains
