@@ -1,30 +1,33 @@
-from itertools import combinations, chain
 import networkx as nx
+from SteinerTree import make_steiner_tree as steinerTree
+from random import shuffle
+import os,json
 
 
-
-def updateVertexWeight(node, aGraph, exponent=30):
+def updateVertexWeight(node, aGraph, exponent=302):
+    # type: (int, nx.Graph, int) -> None
     aGraph.node[node]["score"] = 0
     for nnode in aGraph.neighbors_iter(node):
         aGraph.edge[nnode][node]["weight"] *= exponent
 
-def steinerTree(archGraph, voi):
-    steinerGraph = nx.Graph()
-    for v1, v2 in  combinations(voi, 2):
-        paths = nx.all_shortest_paths(archGraph, v1, v2, "weight")
-        paths2 = (nx.all_shortest_paths(archGraph, v2,v1, "weight"))
-        for path in chain(paths, paths2):
-            for a, b in zip(path[:-1], path[1:]):
-                if not steinerGraph.has_edge(a,b):
-                    steinerGraph.add_edge(a,b, weight= archGraph.edge[a][b]["weight"])
+def display_embeddingview(G, size):
+    def reorder (x):
+        return (x//8)*8 + ((x+4) % 8)
+    embedding = [ list(reorder(x) for x in data["mapto"]) for _, data in G.nodes_iter(data=True)]
+    #embedding = [ [x] for x in range(0,100,8)]
+    tfn = os.tmpnam() + ".json"
+    paras = "--solver chimera {0} {0} 4 --embedding {1} ".format(size, tfn)
+    #print json.dumps(embedding)
+    try:
+        with open(tfn, "w") as f:
+            f.write(json.dumps(embedding))
+        os.system("/home/svarotti/Drive/dwaveproj/projects/embeddingview/EmbeddingView " + paras + " &")
+        raw_input("pause")
+    finally:
+        pass #os.unlink(tfn)
 
-    return nx.minimum_spanning_tree(steinerGraph,"weight")
-
-from SteinerTree import make_steiner_tree as steinerTree
-from random import shuffle
 
 def embed(problemGraph, archGraph):
-    #partEmbedding = Chainmap()
     for e1,e2 in archGraph.edges_iter():
         archGraph.edge[e1][e2]["weight"] = 1.0
 
@@ -83,7 +86,10 @@ def embed(problemGraph, archGraph):
             if minnode is None or archGraph.node[chooseme]["score"] < archGraph.node[minnode]["score"]:
                 minnode = chooseme
 
-        voi = [minnode]
+        ephnode0 = ("eph", minnode)
+        archGraph.add_edge(ephnode0, minnode, weight=0)
+        archGraph.add_edge(minnode, ephnode0, weight=0)
+        voi = [ephnode0]
         for mappedNeigh in alreadyMappedNeighs:
             #add ephnode
             ephnode = ("eph", mappedNeigh)
@@ -93,22 +99,24 @@ def embed(problemGraph, archGraph):
             mappedChain = problemGraph.node[mappedNeigh]["mapto"]
             for vertex in mappedChain:
                 termnodes.update(archGraph.neighbors(vertex))
-            termnodes.difference_update(voi)
+            termnodes.difference_update(voi) # xxx minnode
             termnodes.difference_update(mappedChain)
             for vertex in termnodes:
                 highnum = 1e10
                 archGraph.add_edge(ephnode, vertex, weight=highnum)
                 archGraph.add_edge(vertex,ephnode, weight=highnum)
 
+
         if len(voi) > 1:
             newchain = steinerTree(archGraph, voi) # type: nx.Graph
-            for ephnode in voi[1:]:
+            for ephnode in voi:
                 archGraph.remove_node(ephnode)
                 #newchain.remove_nodes_from(newchain.neighbors(ephnode))
                 newchain.remove_node(ephnode)
             assert minnode in newchain
             assert nx.is_connected(oldArchGraph.subgraph(newchain.nodes_iter()))
         else:
+            archGraph.remove_node(ephnode0)
             newnode = minnode
             newchain = nx.Graph()
             newchain.add_node(newnode)
@@ -122,6 +130,7 @@ def embed(problemGraph, archGraph):
             archGraph.node[newnode]["mapped"].append(nextMappedNode)
         problemGraph.node[nextMappedNode]["mapto"] = chains
         print nextMappedNode, chains
+        display_embeddingview(problemGraph,8)
 
     for node in oldArchGraph.nodes_iter():
         oldArchGraph.node[node]["mapped"] = archGraph.node[node]["mapped"]
