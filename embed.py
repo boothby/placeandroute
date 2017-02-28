@@ -4,7 +4,7 @@ from random import shuffle
 import os,json
 
 
-def updateVertexWeight(node, aGraph, exponent=302):
+def updateVertexWeight(node, aGraph, exponent=3000):
     # type: (int, nx.Graph, int) -> None
     aGraph.node[node]["score"] = 0
     for nnode in aGraph.neighbors_iter(node):
@@ -47,8 +47,14 @@ def embed(problemGraph, archGraph):
 
     mappingorder = problemGraph.nodes()
     shuffle(mappingorder)
+    mappingorder = nx.topological_sort(nx.bfs_tree(problemGraph, mappingorder[0]),mappingorder)
+
 
     for nextMappedNode in mappingorder:
+        assert all(all(
+                        (archGraph.edge[nvertex][vertex]["weight"] == (3000 ** len(data["mapped"])))
+                   for nvertex in (archGraph.neighbors_iter(vertex)))
+                for vertex,data in archGraph.nodes_iter(data=True))
         alreadyMappedNeighs = [x for x in problemGraph.neighbors_iter(nextMappedNode)
                               if len(problemGraph.node[x]["mapto"]) > 0]
         for vertex,data in archGraph.nodes_iter(data=True):
@@ -71,7 +77,7 @@ def embed(problemGraph, archGraph):
                 pred = preds[node]
                 score = distances[node]
                 if ephnode in pred:
-                    archGraph.node[node]["score"] = 1e10
+                    archGraph.node[node]["score"] = 1e100
                     #archGraph.node[node]["pred"][mappedNeigh] = None
                     continue
                 archGraph.node[node]["score"] += score
@@ -86,7 +92,7 @@ def embed(problemGraph, archGraph):
             if minnode is None or archGraph.node[chooseme]["score"] < archGraph.node[minnode]["score"]:
                 minnode = chooseme
 
-        ephnode0 = ("eph", minnode)
+        ephnode0 = ("eph0", minnode)
         archGraph.add_edge(ephnode0, minnode, weight=0)
         archGraph.add_edge(minnode, ephnode0, weight=0)
         voi = [ephnode0]
