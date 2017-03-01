@@ -1,7 +1,9 @@
-import networkx as nx
-from SteinerTree import make_steiner_tree as steinerTree
 from random import shuffle
-import os,json
+
+import networkx as nx
+
+from placeandroute.SteinerTree import make_steiner_tree as steinerTree
+from placeandroute.display import interactive_embeddingview
 
 
 def updateVertexWeight(node, aGraph, exponent=3000):
@@ -9,22 +11,6 @@ def updateVertexWeight(node, aGraph, exponent=3000):
     aGraph.node[node]["score"] = 0
     for nnode in aGraph.neighbors_iter(node):
         aGraph.edge[nnode][node]["weight"] *= exponent
-
-def display_embeddingview(G, size):
-    def reorder (x):
-        return (x//8)*8 + ((x+4) % 8)
-    embedding = [ list(reorder(x) for x in data["mapto"]) for _, data in G.nodes_iter(data=True)]
-    #embedding = [ [x] for x in range(0,100,8)]
-    tfn = os.tmpnam() + ".json"
-    paras = "--solver chimera {0} {0} 4 --embedding {1} ".format(size, tfn)
-    #print json.dumps(embedding)
-    try:
-        with open(tfn, "w") as f:
-            f.write(json.dumps(embedding))
-        os.system("/home/svarotti/Drive/dwaveproj/projects/embeddingview/EmbeddingView " + paras + " &")
-        raw_input("pause")
-    finally:
-        pass #os.unlink(tfn)
 
 
 def embed(problemGraph, archGraph):
@@ -136,7 +122,7 @@ def embed(problemGraph, archGraph):
             archGraph.node[newnode]["mapped"].append(nextMappedNode)
         problemGraph.node[nextMappedNode]["mapto"] = chains
         print nextMappedNode, chains
-        display_embeddingview(problemGraph,8)
+        interactive_embeddingview(problemGraph, 8)
 
     for node in oldArchGraph.nodes_iter():
         oldArchGraph.node[node]["mapped"] = archGraph.node[node]["mapped"]

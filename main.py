@@ -1,89 +1,29 @@
-import random
-from unittest import TestCase
-from collections import defaultdict
+import networkx as nx
 
-class PlaceAndRoute(object):
-    def __init__(self, topology):
-        self.embedded_nodes = []
-        self.best_embedding = []
-        self.best_cost = 1E250
-        self.embedding = None
-        self.topology = topology
+from placeandroute.chimera import create, create2
+from placeandroute.display import display_embeddingview
+from placeandroute.embed import embed
 
-    def closest_node(self, neighbors):
-        scores = defaultdict(int)
-        retpaths = defaultdict(dict)
-        for node in [self.embedded_nodes[x] for x in neighbors]:
-            closest = self.topology.single_source_shortest_path(node)
-            for k,v in closest.iteritems():
-                scores[k] += len(v)
-                retpaths[k][node] = v
-        ret = min(scores)
-        return ret, retpaths[ret]
+if __name__ == '__main__':
+    G = nx.Graph()
+    G.add_nodes_from([1,2])
+    G.add_edges_from([(1,2)])
+    A = nx.Graph()
+    A.add_nodes_from([1,2])
+    A.add_edge(1,2)
+    G, _ = create2(2, 2)
+    A, l = create(8, 8)
+    embed(G,A)
+    for n, data in G.nodes_iter(True):
+        chaingraph = (A.subgraph(data["mapto"]))
+        assert nx.is_connected(chaingraph)
+    #assert all(A.has_edge(a,b) for _, data in G.nodes_iter(data=True) for a,b in combinations(data["mapto"], 2))
+    for vertex in A.nodes_iter():
+        if "pred" in A.node[vertex]:
+            del A.node[vertex]["pred"]
+        A.node[vertex]["mapped"] = str(A.node[vertex]["mapped"])
+    print A.node
+    display_embeddingview(G, 8)
+    #display(A, l)
 
-    def add_route(self, node, to,  paths):
-        for path in paths:
-            for edge in path:
-                self.topology.edges[edge].weight *= 2
-        else:
-            center = self.topology.vertices[len(self.topology.vertices) // 2]
-        self.embedded_nodes.append(node)
 
-    def rip_up(self, node):
-        mynode = self.embedded_nodes[node]
-        chains = mynode.chains
-        for path in chains:
-            for edge in path:
-                self.topology.edges[edge].weight /= 2
-        self.embedded_nodes.remove(mynode)
-
-    def node_cost(self, node):
-        mynode = node
-        return 1 + sum(x.weight for x in mynode.chains)
-
-    def total_cost(self):
-        return sum(x.weight for x in self.topology.edges)
-
-    def run(self, source):
-        for node in source:
-            to, paths = self.closest_node(node)
-            self.add_route(node, to, paths)
-        self.improve_effort(1000)
-
-    def improve_step(self):
-        for node in self.embedded_nodes:
-            oldcost = self.node_cost(node)
-            self.rip_up(node)
-            newroute = self.closest_node(node.neigbors)
-            self.add_route(node, newroute)
-            newcost = self.node_cost(node)
-            if newcost < oldcost:
-                return True
-        return False
-
-    def check_best(self):
-        newcost = self.total_cost()
-        if newcost < self.best_cost:
-            self.best_cost = newcost
-            self.best_embedding = self.embedding
-
-    def get_best(self):
-        return self.best_embedding
-
-    def improve_effort(self, effort):
-        for i in xrange(effort):
-            if not self.improve_step():
-                self.check_best()
-                random.shuffle(self.embedded_nodes)
-            else:
-                self.embedded_nodes.sort(key=self.node_cost)
-        self.check_best()
-
-class PlaceAndRoute(TestCase):
-    def test_usage(self):
-        h = chimera
-        pr = PlaceAndRoute(h)
-        pr.run(source)
-        print pr.get_best()
-        pr.improve_effort(100)
-        print pr.get_best()
