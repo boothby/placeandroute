@@ -1,10 +1,10 @@
 import json
 import os
-
+import time
 import networkx as nx
 
 
-def interactive_embeddingview(G, size):
+def interactive_embeddingview(G, size, stop=True):
     def reorder (x):
         return (x//8)*8 + ((x+4) % 8)
     embedding = [ list(reorder(x) for x in data["mapto"]) for _, data in G.nodes_iter(data=True)]
@@ -16,7 +16,10 @@ def interactive_embeddingview(G, size):
         with open(tfn, "w") as f:
             f.write(json.dumps(embedding))
         os.system("/home/svarotti/Drive/dwaveproj/projects/embeddingview/EmbeddingView " + paras + " &")
-        raw_input("pause")
+        if stop:
+            raw_input("pause")
+        else:
+            time.sleep(1)
     finally:
         pass #os.unlink(tfn)
 
