@@ -1,50 +1,66 @@
 from itertools import combinations
-
+from collections import defaultdict
 import networkx as nx
 
-from placeandroute.smtutils import SmtFormula
+from placeandroute.smtutils import SmtFormula, Op, Symbol
 
 
 def mapscore(problemGraph, archDiGraph):
     pass
 
 
-def embed(problemGraph, archGraph):
-    problemDiGraph = problemGraph.toDiGraph() # type: nx.DiGraph
-    archDiGraph = archGraph.toDigraph()
+def place_edges(problemGraph, archGraph):
+    problemDiGraph = problemGraph.to_directed() # type: nx.DiGraph
+    archDiGraph = archGraph.to_directed()
     smtproblem = SmtFormula()
-    equalvertexmap = dict()
-
-    for i, v1, v2 in zip(range(0,2*len(problemGraph.edges),2), problemGraph.edges_iter()):
-        smtproblem.declare("pa_{}".format(i), "Int")
-        smtproblem.declare("pa_{}".format(i + 1), "Int")
-        smtproblem.declare("pb_{}".format(i), "Int")
-        smtproblem.declare("pb_{}".format(i + 1), "Int")
-
-        # p1[i] = p2[i+1] = v1
-        # (assert (= pa_{} pb_{} {}) )
-        smtproblem.assert_("(= pa_{} pb_{} {})".format(i, i+1, v1))
-        # p2[i] = p1[i+1] = v2
-        # (assert (= pa_{} pb_{} {}) )
-        smtproblem.assert_("(= pb_{} pa_{} {})".format(i, i+1, v2))
+    equalvertexmap = defaultdict(list)
+    ma, mb = Symbol("arch1"), Symbol("arch2")
+    smtproblem.declare(ma, "Int", args="(Int)")
+    smtproblem.declare(mb, "Int", args="(Int)")
 
 
+    # (ma,mb) indexed arch edges
+    smtproblem.assert_(ma(0) == mb(0) == 0)
+    for i, (n1,n2) in enumerate(archGraph.edges_iter(),start=1):
+        smtproblem.assert_(ma(i) == mb(-i) == n1)
+        smtproblem.assert_(mb(i) == ma(-i) == n2)
 
-    for i in range(_):
-        # m1[i] = m2[i+1]
-        # m2[i] = m1[i+1]
-        for j in range(_):
-            # xx collect all eq m1[i] == m1[j] => p1[i] == p1[j]
-        pass
+    #(pa, pb) indexed problem edges
+    #map(i) map problem to arch
+    for i, (v1, v2) in enumerate(problemGraph.edges_iter(), start=1):
+        pa = Symbol("pa_{}", i)
+        pb = Symbol("pb_{}", i)
+        pmap = Symbol("map_{}", i)
 
+        smtproblem.declare(pa, "Int")
+        smtproblem.declare(pb, "Int")
+        smtproblem.declare(pmap, "Int")
+
+        smtproblem.assert_(pa == v1)
+        smtproblem.assert_(pb == v2)
+
+        equalvertexmap[v1].append(pmap)
+        equalvertexmap[v2].append(-pmap)
+        smtproblem.assert_(  (pmap <= archGraph.number_of_edges()) & (pmap != 0)
+                           & (pmap >= -archGraph.number_of_edges()))
+
+
+        # (ma(map(i)) = ma(map(j))) -> (pa(i) == pa(j))
+        # and with other node
+        for j in xrange(1, i):
+            mapj = Symbol("map_{}", j)
+            paj = Symbol("pa_{}", j)
+            smtproblem.assert_(Op("=>", ma(pmap) == ma(mapj), pa == paj))
+            smtproblem.assert_(Op("=>", ma(pmap) == ma(-mapj), pb == paj))
+
+    cost = dict()
     #declare cost
-    usedsum = ""
-    for v in problemGraph.nodes_iter():
-        # count all m1[i] where p1[i] = v
-        for ma, mb in combinations(equalvertexmap[v]):
-            usedsum += " (ite (= {} {}) 1 0)".format(ma, mb)
-    smtproblem.assert_("(minimize (+ {})".format(usedsum))
-    #minimize counts
+    for v, mapsto in equalvertexmap.iteritems():
+        cost[v] = []
+        for mapv in mapsto:
+            pass#costv.append(Op("ite", ))
+
+
     
 
-
+    return smtproblem
