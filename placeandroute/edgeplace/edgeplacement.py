@@ -76,20 +76,21 @@ def place_edges(problemGraph, archGraph):
     return smtproblem
 
 def set_flow_constant(smtproblem, graph, commodities, sourceof, terminalof):
-    hinum = dict()
-    for comm in commodities:
-        hnum = 0
-        for vertex in graph.nodes_iter():
-            hnum += Op("ite", terminalof(vertex+1) == comm+1, 1, 0)
-        hinum[comm] = Symbol("hinum_{}", comm+1)
-        smtproblem.declare(hinum[comm], "Int")
-        smtproblem.assert_(hinum[comm] == hnum)
+    #hinum = dict()
+    #for comm in commodities:
+    #    hnum = 0
+    #    for vertex in graph.nodes_iter():
+    #        hnum += Op("ite", terminalof(vertex+1) == comm+1, 1, 0)
+    #    hinum[comm] = Symbol("hinum_{}", comm+1)
+    #    smtproblem.declare(hinum[comm], "Int")
+    #    smtproblem.assert_(hinum[comm] == hnum)
 
     for vertex in graph.nodes_iter():
         graph.node[vertex]["flow_constant"] = dict()
         for comm in commodities:
             flow_constant = Op("ite", (terminalof(vertex+1) == comm+1),
                                (Op("ite", (sourceof(comm+1) == vertex+1),
-                                   (hinum[comm] - 1), (-1))),
+                               #    (hinum[comm] - 1), (-1))),
+                                   (1), (-1))),
                                (0))
             graph.node[vertex]["flow_constant"][comm] = flow_constant

@@ -18,7 +18,7 @@ def flow_conservation(formula, graph, commodities):
             in_flow = sum(e["flow"][comm] for _,_,e in graph.in_edges_iter(vertex, data=True))
             tot_in_flow += in_flow
             out_flow = sum(e["flow"][comm] for _,_,e in graph.out_edges_iter(vertex, data=True))
-            flow_consi = out_flow == in_flow + graph.node[vertex]["flow_constant"][comm]
+            flow_consi = out_flow <= in_flow*100 + graph.node[vertex]["flow_constant"][comm]
             formula.assert_(flow_consi)
         flow_overfull = tot_in_flow <= 1
         formula.assert_(flow_overfull)
