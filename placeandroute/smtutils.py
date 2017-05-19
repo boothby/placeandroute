@@ -40,8 +40,12 @@ class Op(object):
     def __ne__(self, other):
         return ~(self == other)
 
+
     def __add__(self, other):
         return self._associative("+", other)
+
+    def __sub__(self, other):
+        return Op("-", self, other)
 
     def __radd__(self, other):
         return self + other

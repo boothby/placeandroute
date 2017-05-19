@@ -8,10 +8,11 @@ import networkx as nx
 class TestPlace_edges(TestCase):
     def test_first(self):
         reset_env()
-        chim = create(4,4)[0]
-        full = nx.complete_graph(5)
+        chim = create(16,16)[0]
+        full = nx.complete_graph(16)
         p = place_edges(full, chim)
         parser = SmtLibParser()
-        script = get_formula(cStringIO.StringIO(str(p)))
-        print get_model(script, "z3")
+        print p
+        #script = get_formula(cStringIO.StringIO(str(p)))
+        #print get_model(script, "msat")
 
