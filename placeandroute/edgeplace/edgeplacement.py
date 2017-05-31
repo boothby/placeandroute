@@ -91,6 +91,6 @@ def set_flow_constant(smtproblem, graph, commodities, sourceof, terminalof):
             flow_constant = Op("ite", (terminalof(vertex+1) == comm+1),
                                (Op("ite", (sourceof(comm+1) == vertex+1),
                                #    (hinum[comm] - 1), (-1))),
-                                   (1), (-1))),
-                               (0))
+                                   (1000.0), (-1.0))),
+                               (0.0))
             graph.node[vertex]["flow_constant"][comm] = flow_constant

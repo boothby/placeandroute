@@ -13,14 +13,15 @@ def flow_conservation(formula, graph, commodities):
     def sum(it):
         return reduce(lambda a,b: a+b, it)
     for vertex in graph.nodes_iter():
-        tot_in_flow = 0
+        tot_in_flow = 0.0
         for comm in commodities:
             in_flow = sum(e["flow"][comm] for _,_,e in graph.in_edges_iter(vertex, data=True))
             tot_in_flow += in_flow
             out_flow = sum(e["flow"][comm] for _,_,e in graph.out_edges_iter(vertex, data=True))
-            flow_consi = out_flow <= in_flow*100 + graph.node[vertex]["flow_constant"][comm]
+            flow_consi = out_flow <= in_flow + graph.node[vertex]["flow_constant"][comm]
+            formula.assert_(in_flow <= 1000 * graph.node[vertex]["vertex_assign"][comm])
             formula.assert_(flow_consi)
-        flow_overfull = tot_in_flow <= 1
+        flow_overfull = sum(graph.node[vertex]["vertex_assign"].values()) <= 1
         formula.assert_(flow_overfull)
 
 
@@ -41,9 +42,18 @@ def declare_flows(formula, graph, commodities):
         data["flow"] = dict()
         for comm in commodities:
             newsymb = Symbol("flow_{}_{}_{}".format(edge1+1, edge2+1, comm+1))
-            formula.declare(newsymb, "Int")
-            formula.assert_((newsymb >= 0) & (newsymb <= 1))
+            formula.declare(newsymb, "Real")
+            formula.assert_((newsymb >= 0.0))
             data["flow"][comm] = newsymb
+
+    for vertex in graph.nodes_iter():
+        vertex_assigns = dict()
+        for comm in commodities:
+            sym = Symbol("vertex_assign_{}_{}", vertex, comm)
+            vertex_assigns[comm] = sym
+            formula.declare(sym, "Int")
+            formula.assert_((sym >=0) & (sym <= 1))
+        graph.node[vertex]["vertex_assign"] = vertex_assigns
 
 
 

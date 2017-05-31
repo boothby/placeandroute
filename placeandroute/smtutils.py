@@ -53,6 +53,9 @@ class Op(object):
     def __mul__(self, other):
         return self._associative("*", other)
 
+    def __rmul__(self, other):
+        return  self._associative("*", other)
+
     def __and__(self, other):
         return self._associative("and", other)
 
