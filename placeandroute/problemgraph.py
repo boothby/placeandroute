@@ -24,11 +24,11 @@ def num_vars(cnf):
 def clause_to_hubo(cl):
     ret = []
     ret.append((1, set()))
-    ret.append((sign(cl[0]), set([abs(cl[0])])))
+    ret.append((sign(cl[0]), {abs(cl[0])}))
     for l in cl[1:]:
         newret = []
         for coeff, terms in ret:
-            newret.append((coeff * sign(l), terms ^ set([abs(l)])))
+            newret.append((coeff * sign(l), terms ^ {abs(l)}))
         ret.extend(newret)
 
     return [(sum(a[0] for a in g), k) for k, g in groupby(ret, lambda x: x[1])]
@@ -86,26 +86,26 @@ def cnf_to_qubo(clauses):
             c, a, b = cl
             ret.extend([
                 (0.5 * 4, set()),
-                (0.5 * 1 * sign(a), set([abs(a)])),
-                (0.5 * 2 * sign(b), set([abs(b)])),
-                (0.5 * -3 * sign(c), set([abs(c)])),
-                (0.5 * -2 * sign(a) * sign(c), set([abs(a), abs(c)])),
-                (0.5 * -3 * sign(b) * sign(c), set([abs(b), abs(c)])),
-                (0.5 * 1 * sign(a) * sign(b), set([abs(a), abs(b)])),
+                (0.5 * 1 * sign(a), {abs(a)}),
+                (0.5 * 2 * sign(b), {abs(b)}),
+                (0.5 * -3 * sign(c), {abs(c)}),
+                (0.5 * -2 * sign(a) * sign(c), {abs(a), abs(c)}),
+                (0.5 * -3 * sign(b) * sign(c), {abs(b), abs(c)}),
+                (0.5 * 1 * sign(a) * sign(b), {abs(a), abs(b)}),
             ])  # XXX
         elif len(cl) < 2:
             ret.extend([
                 (1, set()),
-                (-1 * sign(cl[0]), set([abs(cl[0])]))
+                (-1 * sign(cl[0]), {abs(cl[0])})
             ]
             )
         else:
             a, b = cl
             ret.extend([
                 (0.5 * 1, set()),
-                (0.5 * -1 * sign(a), set([abs(a)])),
-                (0.5 * -1 * sign(b), set([abs(b)])),
-                (0.5 * 1 * sign(a) * sign(b), set([abs(a), abs(b)]))
+                (0.5 * -1 * sign(a), {abs(a)}),
+                (0.5 * -1 * sign(b), {abs(b)}),
+                (0.5 * 1 * sign(a) * sign(b), {abs(a), abs(b)})
             ])
     retdict = dict()
     for c, term in ret:
