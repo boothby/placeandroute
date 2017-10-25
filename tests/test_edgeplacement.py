@@ -4,7 +4,7 @@ from os.path import dirname
 from chimerautils.chimera import create
 from smtutils.process import Solver
 
-from placeandroute.edgeplace.edgeplacement import place_edges
+from placeandroute.edgebased.edgeplacement import place_edges
 from placeandroute.problemgraph import parse_cnf, cnf_to_graph
 class TestPlace_edges(TestCase):
     def test_first(self):

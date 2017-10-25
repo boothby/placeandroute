@@ -16,29 +16,14 @@ def embed(problemGraph, archGraph):
     #expo_param = nx.diameter(archGraph) * 2
     expo_param = archGraph.number_of_nodes()
 
-    for e1,e2 in archGraph.edges_iter():
-        archGraph.edge[e1][e2]["weight"] = 1.0
+    initialize_embedding(archGraph, problemGraph)
 
-    coords = ((data["x"], data["y"]) for _,data in archGraph.nodes_iter(data=True))
-    sumcoords = reduce(lambda (xs,ys), (x,y): (xs+x, ys+y), coords)
-    avgx, avgy = map(lambda x: x/archGraph.number_of_nodes(), sumcoords)
+    avgx, avgy = get_center(archGraph)
 
     oldArchGraph = archGraph
     archGraph = archGraph.to_directed()
 
-
-    for vertex in problemGraph.nodes_iter():
-        problemGraph.node[vertex]["mapto"] = []
-
-    for vertex in archGraph.nodes_iter():
-        archGraph.node[vertex]["mapped"] = []
-
-    mappingorder = problemGraph.nodes()
-    ncentrality = nx.closeness_centrality(problemGraph)
-    mappingorder.sort(key=ncentrality.get)
-    mappingorder.reverse()
-    mappingorder = nx.topological_sort(nx.bfs_tree(problemGraph, mappingorder[0]),mappingorder)
-    #shuffle(mappingorder)
+    mappingorder = initialize_mapping_order(problemGraph)
 
     for nextMappedNode in mappingorder:
         for vertex,data in archGraph.nodes_iter(data=True):
@@ -143,6 +128,32 @@ def embed(problemGraph, archGraph):
 
     for node in oldArchGraph.nodes_iter():
         oldArchGraph.node[node]["mapped"] = archGraph.node[node]["mapped"]
+
+
+def initialize_mapping_order(problemGraph):
+    mappingorder = problemGraph.nodes()
+    ncentrality = nx.closeness_centrality(problemGraph)
+    mappingorder.sort(key=ncentrality.get)
+    mappingorder.reverse()
+    mappingorder = nx.topological_sort(nx.bfs_tree(problemGraph, mappingorder[0]), mappingorder)
+    # shuffle(mappingorder)
+    return mappingorder
+
+
+def initialize_embedding(archGraph, problemGraph):
+    for e1, e2 in archGraph.edges_iter():
+        archGraph.edge[e1][e2]["weight"] = 1.0
+    for vertex in problemGraph.nodes_iter():
+        problemGraph.node[vertex]["mapto"] = []
+    for vertex in archGraph.nodes_iter():
+        archGraph.node[vertex]["mapped"] = []
+
+
+def get_center(archGraph):
+    coords = ((data["x"], data["y"]) for _, data in archGraph.nodes_iter(data=True))
+    sumcoords = reduce(lambda (xs, ys), (x, y): (xs + x, ys + y), coords)
+    avgx, avgy = map(lambda x: x / archGraph.number_of_nodes(), sumcoords)
+    return avgx, avgy
 
 
 def reencode(archGraph, avgx, avgy, mappingorder, oldArchGraph, problemGraph, expo_param):
