@@ -1,9 +1,8 @@
-from random import shuffle, random
+from random import random
 
 import networkx as nx
 
 from placeandroute.SteinerTree import make_steiner_tree as steinerTree
-from placeandroute.display import interactive_embeddingview
 
 
 def updateVertexWeight(node, aGraph, exponent):

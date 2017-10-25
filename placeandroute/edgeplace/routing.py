@@ -1,6 +1,8 @@
 import networkx as nx
+from smtutils.formula import Op, Symbol, SmtFormula
 from typing import Any, Dict
-from placeandroute.smtutils import Op, Symbol, SmtFormula
+
+
 #min overfull
 #given
 # flux_in = 1 + overfull

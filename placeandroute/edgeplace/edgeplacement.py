@@ -1,8 +1,8 @@
-from itertools import combinations
 from collections import defaultdict
-import networkx as nx
+from itertools import combinations
 
-from placeandroute.smtutils import SmtFormula, Op, Symbol
+import networkx as nx
+from smtutils.formula import SmtFormula, Op, Symbol
 
 
 def mapscore(problemGraph, archDiGraph):

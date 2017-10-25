@@ -1,7 +1,7 @@
 import networkx as nx
-
-from placeandroute.chimera import create, create2
+from chimerautils.chimera import create, create2
 from placeandroute.display import display_embeddingview
+
 from placeandroute.embed import embed
 from placeandroute.problemgraph import cnf_to_graph, parse_cnf
 

@@ -1,13 +1,13 @@
 from unittest import TestCase
-from edgeplacement import place_edges
+
+from os.path import dirname
 from placeandroute.chimera import create
-from placeandroute.problemgraph import parse_cnf, cnf_to_graph
+
 #from pysmt.smtlib.parser import get_formula,SmtLib20Parser as SmtLibParser
 #from pysmt.shortcuts import get_model,reset_env,Solver
 import mathsat
-from os.path import dirname
-import cStringIO
-import networkx as nx
+from edgeplacement import place_edges
+from placeandroute.problemgraph import parse_cnf, cnf_to_graph
 class TestPlace_edges(TestCase):
     def test_first(self):
         #reset_env()
