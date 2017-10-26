@@ -2,6 +2,8 @@ from unittest import TestCase
 from placeandroute.edgebased.heuristic import *
 from chimerautils.chimera import create
 import networkx as nx
+from os.path import dirname
+from placeandroute.problemgraph import parse_cnf,cnf_to_graph
 
 class MinMaxTest(TestCase):
     def testinit(self):
@@ -19,3 +21,11 @@ class EdgeHeuristicTest(TestCase):
         ee = EdgeHeuristic(p,g)
         ee.run()
         print ee
+
+    def test_big_problem(self):
+        with open(dirname(__file__) + "/../sgen4-sat-160-8.cnf") as f:
+            p = cnf_to_graph(parse_cnf(f))
+        g, _ = create(16, 16)
+        ee = EdgeHeuristic(p, g)
+        ee.run()
+        print ee.assignment, {k: v.edges() for k,v in ee.routing.result.iteritems()}

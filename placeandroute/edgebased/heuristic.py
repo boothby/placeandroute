@@ -4,6 +4,20 @@ import networkx as nx
 from placeandroute.SteinerTree import make_steiner_tree
 
 
+def fast_steiner_tree(graph, voi):
+    ephnode = "ephemeral"
+    graph.add_edge(ephnode, voi[0], weight=0)
+    for n in voi[1:]:
+        path = nx.dijkstra_path(graph, ephnode, n)
+        for nn in path[2:]:
+            if nn not in graph.neighbors(ephnode):
+                graph.add_edge(ephnode, nn, weight=0)
+    treenodes = graph.neighbors(ephnode)
+    graph.remove_node(ephnode)
+    ret =  graph.subgraph(treenodes)
+    return nx.minimum_spanning_tree(ret)
+
+
 class MinMaxRouter(object):
     def __init__(self, graph, terminals):
         self.result = dict()
@@ -11,7 +25,7 @@ class MinMaxRouter(object):
         self.terminals = terminals
         self.wgraph = graph.copy()
         for n1, n2 in self.wgraph.edges_iter():
-            self.wgraph.edge[n1][n2]["weight"] = 1
+            self.wgraph.edge[n1][n2]["weight"] = float(1)
 
     def increase_weights(self, edges):
         for n1, n2 in edges:
@@ -19,9 +33,10 @@ class MinMaxRouter(object):
 
     def run(self):
         candidatetrees = defaultdict(Counter)
-        for _ in xrange(1000):
+        for _ in xrange(10):
             for node, terminals in self.terminals.iteritems():
-                newtree = make_steiner_tree(self.wgraph, list(terminals))
+                #newtree = make_steiner_tree(self.wgraph, list(terminals))
+                newtree = fast_steiner_tree(self.wgraph, list(terminals))
                 candidatetrees[node][newtree] += 1
                 self._update_weights(newtree)
         ## compact candidatetrees
@@ -76,7 +91,7 @@ class EdgeHeuristic(object):
         router.run()
 
         for n1,n2 in self.archGraph.edges():
-            self.archGraph[n1][n2]["weight"] = 1
+            self.archGraph[n1][n2]["weight"] = float(1)
 
         self.routing = router
 
