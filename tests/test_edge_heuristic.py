@@ -25,7 +25,8 @@ class EdgeHeuristicTest(TestCase):
     def test_big_problem(self):
         with open(dirname(__file__) + "/../sgen4-sat-160-8.cnf") as f:
             p = cnf_to_graph(parse_cnf(f))
-        g, _ = create(16, 16)
+        g, c = create(16, 16)
         ee = EdgeHeuristic(p, g)
+        ee.initial_assignment_bfs(c)
         ee.run()
         print ee.assignment, {k: v.edges() for k,v in ee.routing.result.iteritems()}
