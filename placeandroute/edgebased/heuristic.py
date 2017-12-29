@@ -9,7 +9,7 @@ def fast_steiner_tree(graph, voi):
     ephnode = "ephemeral"
     graph.add_edge(ephnode, voi[0], weight=0)
     for n in voi[1:]:
-        path = nx.dijkstra_path(graph, ephnode, n)
+        path = nx.astar_path(graph, ephnode, n)
         for nn in path[2:]:
             if nn not in graph.neighbors(ephnode):
                 graph.add_edge(ephnode, nn, weight=0)
@@ -61,13 +61,16 @@ class MinMaxRouter(object):
 
 class EdgeHeuristic(object):
     def __init__(self, problemGraph, archGraph):
+        # type: (nx.Graph, nx.Graph) -> None
         self.problemEdges = problemGraph.edges()  # list of pairs
         self.archEdges = archGraph.edges()  # list of pairs
         self.problemGraph = problemGraph  # nx.Graph
         self.archGraph = archGraph  # nx.Graph
         self.rounds = 1000
+        self.exp = 2000.0
         self.assignment = None  # dict from problemEdges to archEdges
         self.tabu = list()
+        self._tabu_size = max(problemGraph.degree(n) for n in problemGraph.nodes_iter())
 
     def initial_assignment_random(self):
         self.assignment = dict(zip(self.problemEdges, rand.sample(self.archEdges, len(self.problemEdges))))
@@ -91,10 +94,15 @@ class EdgeHeuristic(object):
             edgex, edgey = avg2d([coords[n1], coords[n2]])
             self.archGraph[n1][n2]['distance_from_center'] = 0.001*((avgx - edgex)**2 + (avgy - edgey)**2)**0.5
 
+    def _prefer_intracell(self):
+        for n1, n2 in self.archEdges:
+            self.archGraph[n1][n2]['distance_from_center'] += 0.1 if (n1//8) != (n2//8) else 0
+
     def initial_assignment_bfs(self, coords):
         self.assignment = dict()
         self.find_routing(effort=1)
         self._prefer_center(coords)
+        self._prefer_intracell()
         centrality = Counter(nx.closeness_centrality(self.problemGraph))
         startnode = centrality.most_common(1)[0][0]
         ripped = None
@@ -109,18 +117,25 @@ class EdgeHeuristic(object):
 
 
     def choose_ripped_edge(self):
-        node_score = self.routing.get_cost() # use this but weighted node usage not just count
+        node_score = self._get_score()
         ret = None
         best_score = 0
         for k, v in self.assignment.iteritems():
-            score = self.archGraph[v[0]][v[1]]['weight']
+            score = node_score[k[0]] + node_score[k[1]]
             if ret is None or  score > best_score and k not in self.tabu:
                 ret = k
                 best_score = score
-        if len(self.tabu) == min(5, len(self.assignment)):
+        if len(self.tabu) == min(self._tabu_size, len(self.assignment)):
             self.tabu.pop(0)
         self.tabu.append(ret)
         return ret
+
+    def _get_score(self):
+        node_score = dict()  # use this but weighted node usage not just count
+        for n in self.problemGraph.nodes_iter():
+            if not self.routing.is_present(n): continue
+            node_score[n] = sum(self.archGraph[n1][n2]["weight"] for n1, n2 in self.routing.get_tree(n).edges_iter())
+        return node_score
 
     def find_routing(self, effort):
         terminals = defaultdict(set)
@@ -153,44 +168,49 @@ class EdgeHeuristic(object):
                 nn = list()
             self.problemGraph.node[node]["mapto"] = nn
 
-        exp = 2000
         getsize = lambda n: len(self.archGraph.node[n]["mappedto"])
         for n1, n2 in self.archGraph.edges_iter():
-            self.archGraph[n1][n2]["weight"] = max([exp**getsize(n1), exp**getsize(n2)])
+            self.archGraph[n1][n2]["weight"] = max([self.exp**getsize(n1), self.exp**getsize(n2)])
 
 
     def choose_best_edge(self, probEdge):
-        # xxx remember archedge can be flipped! (b, a)
         self._bestEdge = None
         self._bestDist = None
         self._probEdge = probEdge
+        self._distances = [
+        self._prepare_distances(probEdge[0]),
+        self._prepare_distances(probEdge[1])]
 
 
         for n1, n2 in self.archEdges:
             self._update_optimum(n1, n2)
-            self._update_optimum(n2, n1)
+            self._update_optimum(n2, n1) #edge choice can be flipped
 
         return self._bestEdge
 
-    def _node_distance(self, p, tonode):
+    def _prepare_distances(self, pnode):
         ephemeral = ("ephemeral node")
 
-        if not self.routing.is_present(p):
-            return  len(self.archGraph.node[tonode]["mappedto"])
+        if not self.routing.is_present(pnode):
+            return {tonode: 0 *self.exp ** len(self.archGraph.node[tonode]["mappedto"]) for tonode in self.archGraph.nodes_iter()}
 
-        nodes = self.routing.get_tree(p).nodes()
+        nodes = self.routing.get_tree(pnode).nodes()
         for node in nodes:
             self.archGraph.add_edge(ephemeral, node, weight=0)
-        ret =  nx.shortest_path_length(self.archGraph, tonode, ephemeral)
+        ret = nx.single_source_dijkstra_path_length(self.archGraph, ephemeral, weight=None)
         self.archGraph.remove_node(ephemeral)
         return ret
+
+    def _node_distance(self, p, tonode):
+        return self._distances[self._probEdge.index(p)][tonode]
+
 
     def _update_optimum(self, n1, n2):
         p1, p2 = self._probEdge
         dist = self._node_distance(p1, n1) + self._node_distance(p2, n2) \
                + self.archGraph[n1][n2]['distance_from_center'] \
-               + 2000 ** len(self.archGraph.node[n1]["mappedto"].difference({p1}))\
-               + 2000 ** len(self.archGraph.node[n2]["mappedto"].difference({p2}))
+               + self.exp ** max(len(self.archGraph.node[n1]["mappedto"].difference({p1})),
+                len(self.archGraph.node[n2]["mappedto"].difference({p2})))
         if self._bestEdge is None or dist < self._bestDist:
             self._bestEdge = (n1, n2)
             self._bestDist = dist
@@ -203,9 +223,8 @@ class EdgeHeuristic(object):
             choice = self._rip_edge(effort=10)
             self._insert_edge(choice, effort=10)
 
-            print sum(self.routing.get_cost().itervalues()) # bad count
-            count = self._edge_usage()
-            if count.most_common(1)[0][1] == 1: # break on node usage
+            print sum(self._get_score().itervalues()) # bad count
+            if all(len(self.archGraph.node[n]["mappedto"]) < 2 for n in self.archGraph.nodes_iter()):
                 break
 
     def _edge_usage(self):

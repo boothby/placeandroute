@@ -23,7 +23,7 @@ class EdgeHeuristicTest(TestCase):
         print ee
 
     def test_big_problem(self):
-        with open(dirname(__file__) + "/../sgen4-sat-160-8.cnf") as f:
+        with open(dirname(__file__) + "/../simple60.cnf") as f:
             p = cnf_to_graph(parse_cnf(f))
         g, c = create(16, 16)
         ee = EdgeHeuristic(p, g)
