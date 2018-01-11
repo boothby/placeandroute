@@ -1,5 +1,4 @@
 from collections import defaultdict
-from itertools import combinations
 
 import networkx as nx
 from smtutils.formula import SmtFormula, Op, Symbol
@@ -69,7 +68,7 @@ def place_edges(problemGraph, archGraph):
         smtproblem.assert_(terminalof(sourceof(pb)) == pb)
 
     set_flow_constant(smtproblem, archDiGraph, problemGraph.nodes(), sourceof, terminalof)
-    from routing import  declare_flows, flow_conservation
+    from placeandroute.routing.smtbased import  declare_flows, flow_conservation
     declare_flows(smtproblem, archDiGraph, problemGraph.nodes())
     flow_conservation(smtproblem, archDiGraph, problemGraph.nodes())
 

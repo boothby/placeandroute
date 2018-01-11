@@ -1,62 +1,10 @@
 import random as rand
 from collections import defaultdict, Counter
 import networkx as nx
-from placeandroute.SteinerTree import make_steiner_tree
 from chimerautils.display import interactive_embeddingview
 import os
 
-def fast_steiner_tree(graph, voi):
-    ephnode = "ephemeral"
-    graph.add_edge(ephnode, voi[0], weight=0)
-    for n in voi[1:]:
-        path = nx.astar_path(graph, ephnode, n)
-        for nn in path[2:]:
-            if nn not in graph.neighbors(ephnode):
-                graph.add_edge(ephnode, nn, weight=0)
-    treenodes = graph.neighbors(ephnode)
-    graph.remove_node(ephnode)
-    ret =  graph.subgraph(treenodes)
-    return nx.minimum_spanning_tree(ret)
-
-
-class MinMaxRouter(object):
-    def __init__(self, graph, terminals):
-        self.result = dict()
-        self.nodes = terminals.keys()
-        self.terminals = terminals
-        self.wgraph = graph.copy()
-        for n1, n2 in self.wgraph.edges_iter():
-            self.wgraph.edge[n1][n2]["weight"] = float(1)
-
-    def increase_weights(self, edges):
-        for n1, n2 in edges:
-            self.wgraph.edge[n1][n2]["weight"] *= 2000
-
-    def run(self, effort):
-        candidatetrees = defaultdict(Counter)
-        for _ in xrange(effort):
-            for node, terminals in self.terminals.iteritems():
-                #newtree = make_steiner_tree(self.wgraph, list(terminals))
-                newtree = fast_steiner_tree(self.wgraph, list(terminals))
-                candidatetrees[node][newtree] += 1
-                self._update_weights(newtree)
-        ## compact candidatetrees
-        for node in self.terminals.keys():
-            ## xxx allow overlapping for now
-            self.result[node] = candidatetrees[node].most_common(1)[0][0]
-
-    def _update_weights(self, tree):
-        for n1, n2 in tree.edges_iter():
-            self.wgraph.edge[n1][n2]["weight"] *= 2000
-
-    def get_tree(self, node):
-        return self.result[node]
-
-    def get_cost(self):
-        return {n: g.number_of_nodes() for n, g in self.result.iteritems()}
-
-    def is_present(self, p):
-        return p in self.result
+from placeandroute.routing.bonnheuristic import MinMaxRouter
 
 
 class EdgeHeuristic(object):
@@ -96,7 +44,7 @@ class EdgeHeuristic(object):
 
     def _prefer_intracell(self):
         for n1, n2 in self.archEdges:
-            self.archGraph[n1][n2]['distance_from_center'] += 0.1 if (n1//8) != (n2//8) else 0
+            self.archGraph[n1][n2]['distance_from_center'] += 10 if (n1//8) != (n2//8) else 0
 
     def initial_assignment_bfs(self, coords):
         self.assignment = dict()
@@ -108,12 +56,35 @@ class EdgeHeuristic(object):
         ripped = None
         for edge in nx.bfs_edges(self.problemGraph, startnode):
             if ripped is not None:
-                ripped = self._rip_edge(effort=5)
-            self._insert_edge(edge, effort=5)
+                ripped = self.choose_ripped_edge()
+                self._rip_edge(ripped, effort=10)
+            bchoice = self.choose_best_edge(edge)
+            self._insert_edge(edge, bchoice, effort=10)
             if ripped is not None:
-                self._insert_edge(ripped, effort=5)
+                rchoice = self.choose_best_edge(ripped)
+                self._insert_edge(ripped, rchoice, effort=10)
             else:
                 ripped = 1
+
+    def initial_assignment_local(self, coords):
+        self.assignment = dict()
+        self.find_routing(effort=1)
+        self._prefer_center(coords)
+        self._prefer_intracell()
+
+        ripped = None
+        for edge in local_order_edges(self.problemGraph):
+            if ripped is not None:
+                ripped = self.choose_ripped_edge()
+                self._rip_edge(ripped, effort=10)
+            bchoice = self.choose_best_edge(edge)
+            self._insert_edge(edge, bchoice, effort=10)
+            if ripped is not None:
+                rchoice = self.choose_best_edge(ripped)
+                self._insert_edge(ripped, rchoice, effort=10)
+            else:
+                ripped = 1
+
 
 
     def choose_ripped_edge(self):
@@ -125,6 +96,15 @@ class EdgeHeuristic(object):
             if ret is None or  score > best_score and k not in self.tabu:
                 ret = k
                 best_score = score
+        if len(self.tabu) == min(self._tabu_size, len(self.assignment)):
+            self.tabu.pop(0)
+        self.tabu.append(ret)
+        return ret
+
+    def choose_ripped_node(self):
+        node_score = self._get_score()
+        ret = max(node_score.items(), key=lambda (k,v): 0 if k in self.tabu else v)[1]
+
         if len(self.tabu) == min(self._tabu_size, len(self.assignment)):
             self.tabu.pop(0)
         self.tabu.append(ret)
@@ -150,8 +130,9 @@ class EdgeHeuristic(object):
 
         self._update_weights()
 
-        os.environ["PATH"] += ":/home/svarotti/Drive/dwaveproj/projects/embeddingview"
-        interactive_embeddingview(self.problemGraph, 16, False)
+        if effort >= 10:
+            os.environ["PATH"] += ":/home/svarotti/Drive/dwaveproj/projects/embeddingview"
+            interactive_embeddingview(self.problemGraph, 16, False)
 
     def _update_weights(self):
         router = self.routing
@@ -161,7 +142,7 @@ class EdgeHeuristic(object):
 
         for node in self.problemGraph.nodes_iter():
             if router.is_present(node):
-                nn = router.get_tree(node).nodes()
+                nn = router.get_nodes(node)
                 for nnn in nn:
                     self.archGraph.node[nnn]["mappedto"].add(node)
             else:
@@ -218,14 +199,30 @@ class EdgeHeuristic(object):
     def run(self):
         if self.assignment is None:
             self.initial_assignment_random()
+            for round in xrange(self.rounds):
+                print sum(self._get_score().itervalues()) # bad count
+                if all(len(self.archGraph.node[n]["mappedto"]) < 2 for n in self.archGraph.nodes_iter()):
+                    break
+                self.reroute_node()
 
-        for round in xrange(self.rounds):
-            choice = self._rip_edge(effort=10)
-            self._insert_edge(choice, effort=10)
+    def reroute_edge(self):
+        choice = self.choose_ripped_edge()
+        self._rip_edge(choice,effort=10)
+        dest = self.choose_best_edge(choice)
+        self._insert_edge(choice, dest, effort=10)
 
-            print sum(self._get_score().itervalues()) # bad count
-            if all(len(self.archGraph.node[n]["mappedto"]) < 2 for n in self.archGraph.nodes_iter()):
-                break
+    def reroute_node(self):
+        chnode = self.choose_ripped_node()
+        redges = [e for e in self.problemEdges if chnode in e]
+        for e in redges[:-1]:
+            self._rip_edge(e, effort=0)
+        self._rip_edge(redges[-1],effort=10)
+        rand.shuffle(redges)
+        for e in redges:
+            choice = self.choose_best_edge(e)
+            self._insert_edge(e, choice, effort=10)
+
+
 
     def _edge_usage(self):
         count = Counter()
@@ -235,14 +232,28 @@ class EdgeHeuristic(object):
             count[frozenset(aed)] += 1
         return count
 
-    def _insert_edge(self, choice, effort):
-        dest = self.choose_best_edge(choice)
+    def _node_cost(self):
+        return sum(self.exp **len(d["mappedto"]) for n,d in self.archGraph.nodes_iter(data=True))
+
+    def _insert_edge(self, choice, dest, effort):
         self.assignment[choice] = dest
-        self.find_routing(effort)
+        if effort: self.find_routing(effort)
 
-    def _rip_edge(self, effort):
-        choice = self.choose_ripped_edge()
+    def _rip_edge(self, choice, effort):
         del self.assignment[choice]
-        self.find_routing(effort)
-        return choice
+        if effort: self.find_routing(effort)
 
+
+def local_order_edges(p):
+    n = {max(p.nodes(), key=p.degree)}
+    edge_ordered = []
+    while True:
+        nn = set()
+        for x in n:
+            nn.update(p.neighbors(x))
+        nn.difference_update(n)
+        if not len(nn): break
+        nn = max(nn, key=p.degree)
+        edge_ordered.extend((nn, o) for o in p.neighbors(nn) if o in n)
+        n.add(nn)
+    return edge_ordered

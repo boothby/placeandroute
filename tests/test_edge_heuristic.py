@@ -4,6 +4,8 @@ from chimerautils.chimera import create
 import networkx as nx
 from os.path import dirname
 from placeandroute.problemgraph import parse_cnf,cnf_to_graph
+from placeandroute.routing.bonnheuristic import MinMaxRouter
+
 
 class MinMaxTest(TestCase):
     def testinit(self):
@@ -27,6 +29,6 @@ class EdgeHeuristicTest(TestCase):
             p = cnf_to_graph(parse_cnf(f))
         g, c = create(16, 16)
         ee = EdgeHeuristic(p, g)
-        ee.initial_assignment_bfs(c)
+        ee.initial_assignment_local(c)
         ee.run()
         print ee.assignment, {k: v.edges() for k,v in ee.routing.result.iteritems()}
