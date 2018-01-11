@@ -14,9 +14,9 @@ def fast_steiner_tree(graph, voi):
                 graph.add_edge(ephnode, nn, weight=0)
     treenodes = graph.neighbors(ephnode)
     graph.remove_node(ephnode)
-    return frozenset(treenodes)
-    #ret =  graph.subgraph(treenodes)
-    #return nx.minimum_spanning_tree(ret)
+    #return frozenset(treenodes)
+    ret =  graph.subgraph(treenodes)
+    return nx.minimum_spanning_tree(ret)
 
 
 def choice_weighted(l):
@@ -30,17 +30,25 @@ def choice_weighted(l):
 
 
 class MinMaxRouter(object):
-    def __init__(self, graph, terminals):
+    def __init__(self, graph, terminals, epsilon=1,capacity=1):
         self.result = dict()
         self.nodes = terminals.keys()
         self.terminals = terminals
         self.wgraph = nx.Graph(graph) #shallow copy
-        for n1, n2 in self.wgraph.edges_iter():
-            self.wgraph.edge[n1][n2]["weight"] = float(1)
+        self.epsilon = epsilon
+        for n1, n2 in self.wgraph.edges():
+            data = self.wgraph.edges[n1][n2]
+            data["weight"] = float(1)
+            data["usage"] = 0
+            if "capacity" not in data:
+                data["capacity"] = capacity
 
     def increase_weights(self, edges):
         for n1, n2 in edges:
-            self.wgraph.edge[n1][n2]["weight"] *= 2000
+            data = self.wgraph.edges[n1][n2]
+            usage = data["usage"] / data["capacity"]
+            data["weight"] *= 2.783 ** (self.epsilon*usage)
+            data["usage"] += 1
 
     def run(self, effort):
         candidatetrees = defaultdict(Counter)
@@ -52,10 +60,10 @@ class MinMaxRouter(object):
                 #newtree = make_steiner_tree(self.wgraph, list(terminals))
                 newtree = fast_steiner_tree(self.wgraph, list(terminals))
                 candidatetrees[node][newtree] += 1
-                self._update_weights(newtree)
+                self.increase_weights(newtree.edges())
+
         ## compact candidatetrees
         for node in self.terminals.keys():
-            ## xxx allow overlapping for now
             self.result[node] = [(t, float(q)/effort) for t,q in candidatetrees[node].most_common()]
         self.derandomize(effort)
 
@@ -92,11 +100,6 @@ class MinMaxRouter(object):
 
         self.result = ret
 
-
-
-    def _update_weights(self, nodes):
-        for n1, n2 in self.wgraph.subgraph(nodes).edges_iter():
-            self.wgraph.edge[n1][n2]["weight"] *= 2000
 
     def get_tree(self, node):
         return self.wgraph.subgraph(self.result[node])
