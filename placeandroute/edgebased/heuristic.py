@@ -18,7 +18,7 @@ class EdgeHeuristic(object):
         self.exp = 2000.0
         self.assignment = None  # dict from problemEdges to archEdges
         self.tabu = list()
-        self._tabu_size = max(problemGraph.degree(n) for n in problemGraph.nodes_iter())
+        self._tabu_size = max(problemGraph.degree(n) for n in problemGraph.nodes())
 
     def initial_assignment_random(self):
         self.assignment = dict(zip(self.problemEdges, rand.sample(self.archEdges, len(self.problemEdges))))

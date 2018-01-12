@@ -1,10 +1,12 @@
 import random as rand
-
+from typing import Optional, List, Any, Tuple, Dict, FrozenSet, Iterable
 import networkx as nx
+from math import exp
 from collections import defaultdict, Counter
 
 
 def fast_steiner_tree(graph, voi):
+    # type: (nx.Graph, List[Any]) -> FrozenSet[Any]
     ephnode = "ephemeral"
     graph.add_edge(ephnode, voi[0], weight=0)
     for n in voi[1:]:
@@ -14,12 +16,13 @@ def fast_steiner_tree(graph, voi):
                 graph.add_edge(ephnode, nn, weight=0)
     treenodes = graph.neighbors(ephnode)
     graph.remove_node(ephnode)
-    #return frozenset(treenodes)
-    ret =  graph.subgraph(treenodes)
-    return nx.minimum_spanning_tree(ret)
+    return frozenset(treenodes)
+    #ret =  graph.subgraph(treenodes)
+    #return nx.minimum_spanning_tree(ret)
 
 
 def choice_weighted(l):
+    # type: (List[Tuple[Any,float]]) -> Any
     r = rand.random()
     for t, prob in l:
         if r < prob:
@@ -31,26 +34,46 @@ def choice_weighted(l):
 
 class MinMaxRouter(object):
     def __init__(self, graph, terminals, epsilon=1,capacity=1):
+        # type: (nx.Graph, Dict[Any, Any], Optional[float], Optional[float]) -> None
         self.result = dict()
         self.nodes = terminals.keys()
         self.terminals = terminals
-        self.wgraph = nx.Graph(graph) #shallow copy
+        self.wgraph = nx.DiGraph(graph)
         self.epsilon = epsilon
-        for n1, n2 in self.wgraph.edges():
-            data = self.wgraph.edges[n1][n2]
-            data["weight"] = float(1)
-            data["usage"] = 0
-            if "capacity" not in data:
-                data["capacity"] = capacity
 
-    def increase_weights(self, edges):
-        for n1, n2 in edges:
-            data = self.wgraph.edges[n1][n2]
-            usage = data["usage"] / data["capacity"]
-            data["weight"] *= 2.783 ** (self.epsilon*usage)
+        self._initialize_weights(capacity)
+
+
+    def _initialize_weights(self, capacity):
+        terminals = self.terminals
+        for n1, n2 in self.wgraph.edges():
+            data = self.wgraph.edges[n1,n2]
+            data["weight"] = float(1)
+        for _, data in self.wgraph.nodes(data=True):
+            data["usage"] = 0
+            data["capacity"] = capacity
+
+        for vs in terminals.itervalues():
+            self.increase_weights(vs)
+
+
+
+    def increase_weights(self, nodes):
+        # type: (Iterable[Any]) -> None
+        for node in nodes:
+            data = self.wgraph.nodes[node]
             data["usage"] += 1
+            usage = data["usage"] / data["capacity"]
+            for edge in self.wgraph.in_edges(node):
+                data = self.wgraph.edges[edge]
+                try:
+                    data["weight"] *= exp(self.epsilon * usage)
+                except OverflowError:
+                    raise
+
 
     def run(self, effort):
+        # type: (int) -> None
         candidatetrees = defaultdict(Counter)
         if not self.terminals:
             return
@@ -60,7 +83,7 @@ class MinMaxRouter(object):
                 #newtree = make_steiner_tree(self.wgraph, list(terminals))
                 newtree = fast_steiner_tree(self.wgraph, list(terminals))
                 candidatetrees[node][newtree] += 1
-                self.increase_weights(newtree.edges())
+                self.increase_weights(newtree)
 
         ## compact candidatetrees
         for node in self.terminals.keys():
@@ -69,6 +92,7 @@ class MinMaxRouter(object):
 
 
     def derandomize(self,effort):
+        # type: (int) -> None
         ret = dict()
         nodes = self.terminals.keys()
         for node in nodes:
@@ -101,14 +125,14 @@ class MinMaxRouter(object):
         self.result = ret
 
 
-    def get_tree(self, node):
-        return self.wgraph.subgraph(self.result[node])
-
     def get_nodes(self, node):
+        # type: (Any) -> Set[Any]
         return self.result[node]
 
     def get_cost(self):
+        # type: () -> Dict[Any, float]
         return {n: len(g) for n, g in self.result.iteritems()}
 
     def is_present(self, p):
+        # type: (Any) -> bool
         return p in self.result
