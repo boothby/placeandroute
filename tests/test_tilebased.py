@@ -44,7 +44,7 @@ def expand_solution(g, h):
         chosen_sg = None
         for component in nx.connected_components(sg):
             #gcomponent = sg.subgraph(component)
-            if all(any(n in component for n in choice) for choice in vs):
+            if all(any(n in component for n in choice) for choice in vs) and chosen_sg is None:
                 chosen_sg = component
             else:
                 for n in component:

@@ -1,6 +1,8 @@
 import random
 
 from collections import defaultdict
+from itertools import combinations
+
 from typing import List, Any
 from placeandroute.routing.bonnheuristic import MinMaxRouter
 import networkx as nx
@@ -68,6 +70,34 @@ class TilePlacementHeuristic(object):
         self.do_routing()
         return True
 
+    def init_placement_bfs(self):
+        cg = nx.Graph()
+        vartoconst = defaultdict(list)
+        for constraint in self.constraints:
+            cg.add_node(constraint)
+            for vset in constraint.tile:
+                for v in vset:
+                    vartoconst[v].append(constraint)
+
+        for cset in vartoconst.itervalues():
+            for v1,v2 in combinations(cset,2):
+                cg.add_edge(v1,v2)
+
+        centrality = nx.betweenness_centrality(cg)
+        start = max(cg.nodes(), key=lambda x: centrality[x])
+        starttile = self.choices[len(self.choices)/2]
+        self.insert_tile(start, starttile)
+        for _, constraint in nx.bfs_edges(cg, start):
+            best = self.find_best_place(constraint)
+            self.insert_tile(constraint, best)
+            #worst = self.pick_worst()
+            #self.remove_tile(worst)
+            #best2 = self.find_best_place(worst)
+            #self.insert_tile(worst, best2)
+
+        return True
+
+
     def do_routing(self):
         placement = self.tile_to_vars()
         self.router = MinMaxRouter(self.arch, placement, capacity=4, epsilon=0.001)
@@ -86,6 +116,7 @@ class TilePlacementHeuristic(object):
         for round in xrange(self.rounds):
             if self.is_valid_embedding():
                 return True
+            print(self.score())
             remove_choice = self.pick_worst()
             self.remove_tile(remove_choice)
             best_place = self.find_best_place(remove_choice)
@@ -97,6 +128,9 @@ class TilePlacementHeuristic(object):
 
     def is_valid_embedding(self):
         return all(data['usage'] <= data['capacity'] for _,data in self.arch.nodes(data=True))
+
+    def score(self):
+        return sum(max(0, data['usage'] - data['capacity']) for _, data in self.arch.nodes(data=True))
 
     def pick_worst(self):
         ret = self.constraints[self.counter % len(self.constraints)]
