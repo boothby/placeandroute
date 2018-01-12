@@ -1,4 +1,6 @@
 import random
+
+from collections import defaultdict
 from typing import List, Any
 from placeandroute.routing.bonnheuristic import MinMaxRouter
 import networkx as nx
@@ -69,7 +71,7 @@ class TilePlacementHeuristic(object):
     def do_routing(self):
         placement = self.tile_to_vars()
         self.router = MinMaxRouter(self.arch, placement, capacity=4, epsilon=0.001)
-        self.router.run(self.rounds)
+        self.router.run(10)
         self.chains = self.router.result
         for node,data in self.arch.nodes(data=True):
             data["usage"] = 0
@@ -109,14 +111,40 @@ class TilePlacementHeuristic(object):
             self.do_routing()
 
     def find_best_place(self, constraint):
-        return random.choice([x for x in self.choices if self.constraint_fit(x, constraint)])
+        placement = self.tile_to_vars()
+        router = MinMaxRouter(self.arch, placement, capacity=4, epsilon=0.001)
+        wgraph = router.wgraph
+        #ephnodes = []
+        scores = []
+        for vset in constraint.tile:
+            score = defaultdict(float)
+            for v in vset:
+                if v not in placement: continue
+                ephnode = ("ephemeral",v)
+                #ephnodes.append(ephnode)
+                wgraph.add_edges_from([(ephnode,chain_node) for chain_node in placement[v]], weight=0)
+                lengths = nx.single_source_dijkstra_path_length(wgraph, ephnode)
+                for n, length in lengths.iteritems():
+                    score[n] += length
+                wgraph.remove_node(ephnode)
+            scores.append(score)
+
+        best_score = 0
+        best_choice = None
+        for choice in self.choices:
+            score = scores[0][choice[0]] + scores[1][choice[1]]
+            if best_choice is None or score < best_score:
+                best_choice = choice
+                best_score = score
+        return best_choice
+
 
     def tile_to_vars(self):
         placement = dict()
         for constraint, tile in self.placement.iteritems():
             for pnodes, anode in zip(constraint.tile, tile):
                 for pnode in pnodes:
-                    if pnode not in self.placement:
+                    if pnode not in placement:
                         placement[pnode] = []
                     placement[pnode].append(anode)
         return placement
