@@ -3,6 +3,7 @@ import random
 from collections import defaultdict
 from itertools import combinations
 
+from math import log
 from typing import List, Any
 from placeandroute.routing.bonnheuristic import MinMaxRouter
 import networkx as nx
@@ -13,27 +14,6 @@ class Constraint(object):
         # type: (List[List[Any]]) -> None
         self.tile = vars
 
-
-def chimeratiles(w,h):
-    ret = nx.Graph()
-    i = 0
-    grid = []
-    choices = []
-    for c in range(w):
-        row = []
-        for r in range(h):
-            n1, n2 = i, i +1
-            i += 2
-            ret.add_nodes_from([n1,n2], capacity=4, usage=0)
-            ret.add_edge(n1,n2, capacity=16)
-            if row:
-                ret.add_edge(n1, row[-1][0], capacity=4)
-            if grid:
-                ret.add_edge(n2,grid[-1][len(row)][1],capacity=4)
-            row.append((n1,n2))
-            choices.extend([(n1,n2), (n2,n1)])
-        grid.append(row)
-    return ret, choices
 
 class TilePlacementHeuristic(object):
     def __init__(self, constraints, archGraph, choices):
@@ -49,6 +29,7 @@ class TilePlacementHeuristic(object):
         self.placement = dict()
         self.chains = {}
         self.choices = choices
+        self.rip_tabu = []
 
     def constraint_fit(self, choice, constraint):
         for (node, req) in zip(choice, constraint.tile):
@@ -59,7 +40,7 @@ class TilePlacementHeuristic(object):
 
         return True
 
-    def init_placement_random(self):
+    def init_placement(self):
         choices = self.choices
         for constraint in self.constraints:
             possible_choices = [x for x in choices if self.constraint_fit(x, constraint)]
@@ -87,20 +68,23 @@ class TilePlacementHeuristic(object):
         start = max(cg.nodes(), key=lambda x: centrality[x])
         starttile = self.choices[len(self.choices)/2]
         self.insert_tile(start, starttile)
+        worst = None
         for _, constraint in nx.bfs_edges(cg, start):
             best = self.find_best_place(constraint)
             self.insert_tile(constraint, best)
-            #worst = self.pick_worst()
-            #self.remove_tile(worst)
-            #best2 = self.find_best_place(worst)
-            #self.insert_tile(worst, best2)
+            self.do_routing()
+            worst = self.pick_worst()
+            self.remove_tile(worst)
+            best2 = self.find_best_place(worst)
+            self.insert_tile(worst, best2)
+        self.do_routing()
 
         return True
 
 
     def do_routing(self):
         placement = self.tile_to_vars()
-        self.router = MinMaxRouter(self.arch, placement, capacity=4, epsilon=0.001)
+        self.router = MinMaxRouter(self.arch, placement, epsilon=1)
         self.router.run(10)
         self.chains = self.router.result
         for node,data in self.arch.nodes(data=True):
@@ -110,13 +94,13 @@ class TilePlacementHeuristic(object):
                 self.arch.nodes[node]["usage"] += 1
 
     def run(self):
-        if not self.init_placement_random():
+        if not self.init_placement():
             return False
 
         for round in xrange(self.rounds):
             if self.is_valid_embedding():
                 return True
-            print(self.score())
+            print(self.score(), [self.placement[c] for c in self.constraints])
             remove_choice = self.pick_worst()
             self.remove_tile(remove_choice)
             best_place = self.find_best_place(remove_choice)
@@ -132,21 +116,54 @@ class TilePlacementHeuristic(object):
     def score(self):
         return sum(max(0, data['usage'] - data['capacity']) for _, data in self.arch.nodes(data=True))
 
-    def pick_worst(self):
+    def pick_worst_iter(self):
         ret = self.constraints[self.counter % len(self.constraints)]
         self.counter += 1
         return ret
 
+    def pick_worst(self):
+        costs = {node: max(0, data['usage'] - data['capacity']) for node, data in self.arch.nodes(data=True)}
+        worstc = None
+        worstcost = 0
+        for constr in self.placement.iterkeys():
+            if constr in self.rip_tabu: continue
+            cost = sum(sum(sum(costs[node] for node in self.chains[var]) for var in var_row) for var_row in constr.tile)
+            if worstc is None or cost > worstcost:
+                worstc = constr
+                worstcost = cost
+        if worstc is None:
+            worstc = random.choice(self.placement.keys())
+        self.rip_tabu.append(worstc)
+        if len(self.rip_tabu) > 10:
+            self.rip_tabu.pop(0)
+        return worstc
+
 
     def remove_tile(self, constr, clean_chains=True):
+        old =  self.placement[constr]
         del self.placement[constr]
         if clean_chains:
-            # todo: only remove dead branches
-            self.do_routing()
+            placement = self.tile_to_vars()
+            for var_row, node in zip(constr.tile, old):
+                for var in var_row:
+                    if var not in self.chains or node not in self.chains[var]:
+                        break # should be hit only when var has been deleted from the previous row
+                    if var not in placement:
+                        del self.chains[var]
+                        break
+                    chaintree = nx.Graph(self.arch.subgraph(self.chains[var]))
+                    leaf = node
+                    while chaintree.degree(leaf) == 1 and leaf not in placement[var]:
+                        newleaf = next(chaintree.neighbors(leaf))
+                        chaintree.remove_node(leaf)
+                        self.chains[var] = self.chains[var].difference({leaf})
+                        self.arch.nodes[leaf]['usage'] -= 1
+                        leaf = newleaf
+
 
     def find_best_place(self, constraint):
         placement = self.tile_to_vars()
-        router = MinMaxRouter(self.arch, placement, capacity=4, epsilon=0.001)
+        router = MinMaxRouter(self.arch, placement, epsilon=log(2000))
         wgraph = router.wgraph
         #ephnodes = []
         scores = []
@@ -186,4 +203,5 @@ class TilePlacementHeuristic(object):
     def insert_tile(self, constraint, tile):
         # type: (Constraint, List[List[Any]]) -> None
         self.placement[constraint] = tile
-        self.do_routing()
+
+

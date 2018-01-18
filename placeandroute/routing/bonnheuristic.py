@@ -3,13 +3,14 @@ from typing import Optional, List, Any, Tuple, Dict, FrozenSet, Iterable
 import networkx as nx
 from math import exp
 from collections import defaultdict, Counter
+from typing import Set
 
 
-def fast_steiner_tree(graph, voi):
+def fast_steiner_tree(graph, voi_iter):
     # type: (nx.Graph, List[Any]) -> FrozenSet[Any]
     ephnode = "ephemeral"
-    graph.add_edge(ephnode, voi[0], weight=0)
-    for n in voi[1:]:
+    graph.add_edge(ephnode, next(voi_iter), weight=0)
+    for n in voi_iter:
         path = nx.astar_path(graph, ephnode, n)
         for nn in path[2:]:
             if nn not in graph.neighbors(ephnode):
@@ -33,25 +34,24 @@ def choice_weighted(l):
 
 
 class MinMaxRouter(object):
-    def __init__(self, graph, terminals, epsilon=1,capacity=1):
-        # type: (nx.Graph, Dict[Any, Any], Optional[float], Optional[float]) -> None
+    def __init__(self, graph, terminals, epsilon=1):
+        # type: (nx.Graph, Dict[Any, Any], Optional[float]) -> None
         self.result = dict()
         self.nodes = terminals.keys()
         self.terminals = terminals
         self.wgraph = nx.DiGraph(graph)
         self.epsilon = epsilon
 
-        self._initialize_weights(capacity)
+        self._initialize_weights()
 
 
-    def _initialize_weights(self, capacity):
+    def _initialize_weights(self):
         terminals = self.terminals
         for n1, n2 in self.wgraph.edges():
             data = self.wgraph.edges[n1,n2]
             data["weight"] = float(1)
         for _, data in self.wgraph.nodes(data=True):
             data["usage"] = 0
-            data["capacity"] = capacity
 
         for vs in terminals.itervalues():
             self.increase_weights(vs)
@@ -81,7 +81,7 @@ class MinMaxRouter(object):
         for _ in xrange(effort):
             for node, terminals in self.terminals.iteritems():
                 #newtree = make_steiner_tree(self.wgraph, list(terminals))
-                newtree = fast_steiner_tree(self.wgraph, list(terminals))
+                newtree = fast_steiner_tree(self.wgraph, iter(terminals))
                 candidatetrees[node][newtree] += 1
                 self.increase_weights(newtree)
 
