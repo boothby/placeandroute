@@ -1,7 +1,10 @@
 import networkx as nx
+from typing import List, Dict
 
 
 def chimeratiles(w,h):
+    # type: (int, int) -> (nx.Graph, List[int])
+    """Return a compressed version of a chimera graph, where each row in a tile is merged in a single node"""
     ret = nx.Graph()
     i = 0
     grid = []
@@ -23,18 +26,19 @@ def chimeratiles(w,h):
     return ret, choices
 
 
-def expand_solution(g, h, cg):
-    x = nx.Graph()
+def expand_solution(g, chains, cg):
+    # type: (nx.Graph, Dict[int, List[int]], nx.Graph) -> Dict[int, List[int]]
+    x = dict()
     alreadymapped = set()
     assert all(cg.has_edge(n1 * 4, n2 * 4) for n1, n2 in g.edges())
-    for k, v in h.chains.iteritems():
+    for k, v in sorted(chains.items(), key=lambda (k,v): -len(v)):
         # single node case this is easy
         if len(v) == 1:
             nodegroup = next(iter(v))
             choice = range(nodegroup * 4, (nodegroup+1)*4)
             choice = filter(lambda  x: x not in alreadymapped, choice)[:1]
             alreadymapped.update(choice)
-            x.add_node(k, mapto=choice)
+            x[k]= choice
             continue
 
         #long chain. rationale: build the subgraph of possible chains, then trim it
@@ -58,6 +62,7 @@ def expand_solution(g, h, cg):
                     allchoices.remove(n)
                     for v in vs:
                         if n in v: v.remove(n)
+        assert chosen_sg is not None, (sg.nodes(), sg.edges())
         sg = sg.subgraph(chosen_sg)
         sg = nx.minimum_spanning_tree(sg)
         assert nx.is_connected(sg), (list(nx.connected_components(sg)), allchoices, vs)
@@ -87,5 +92,5 @@ def expand_solution(g, h, cg):
 
         vs = [v[0] for v in vs]
         alreadymapped.update(vs)
-        x.add_node(k, mapto=vs)
+        x[k] = vs
     return x

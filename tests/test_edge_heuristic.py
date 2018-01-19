@@ -13,7 +13,7 @@ class MinMaxTest(TestCase):
         terminals = {1: [1, 5, 7], 2 : [16], 3 : [ 15, 18, 20, 21]}
         mm = MinMaxRouter(g, terminals)
         mm.run()
-        print mm.get_cost()
+        print mm.result
 
 
 class EdgeHeuristicTest(TestCase):

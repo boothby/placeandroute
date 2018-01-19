@@ -4,32 +4,133 @@ from collections import defaultdict
 from itertools import combinations
 
 from math import log
-from typing import List, Any
+from typing import List, Any, overload
 from placeandroute.routing.bonnheuristic import MinMaxRouter
 import networkx as nx
 
 
 class Constraint(object):
+    """Class representing a constraint, essentially just a container for the variable mapping.
+    """
     def __init__(self, vars):
         # type: (List[List[Any]]) -> None
+        """Initializes the variable mapping.
+        Currently the variable mapping is represented as a list of list of variables. Each inner list represents a set
+        of variables that can be placed in any order. Considering the chimera, the mapping consists in two lists
+        containing the variables that go in a 4 qubit row. Todo: add multiple alternative mappings"""
         self.tile = vars
+
+class Tactic(object):
+    """Generic tactic object"""
+    def __init__(self, parent):
+        # type: (TilePlacementHeuristic) -> None
+        self.parent = parent
+
+    def init_placement(self):
+        # type: () -> bool
+        raise NotImplementedError
+
+    def pick_worst(self):
+        # type: () -> Constraint
+        raise NotImplementedError
+
+class RandomInitTactic(Tactic):
+    def init_placement(self):
+        p = self.parent
+        choices = p.choices
+        for constraint in p.constraints:
+            possible_choices = [x for x in choices if p.constraint_fit(x, constraint)]
+            if not possible_choices:
+                return False
+            position = random.choice(possible_choices)
+            p.insert_tile(constraint, position)
+        p.do_routing()
+        return True
+
+class BFSInitTactic(Tactic):
+    def init_placement(self):
+        p = self.parent
+        cg = nx.Graph()
+        vartoconst = defaultdict(list)
+        for constraint in p.constraints:
+            cg.add_node(constraint)
+            for vset in constraint.tile:
+                for v in vset:
+                    vartoconst[v].append(constraint)
+
+        for cset in vartoconst.itervalues():
+            for v1,v2 in combinations(cset,2):
+                cg.add_edge(v1,v2)
+
+        pick_t = CostlyTilePickTactic(p)
+        centrality = nx.betweenness_centrality(cg)
+        start = max(cg.nodes(), key=lambda x: centrality[x])
+        starttile = p.choices[len(p.choices) / 2]
+        p.insert_tile(start, starttile)
+        worst = None
+        for _, constraint in nx.bfs_edges(cg, start):
+            best = p.find_best_place(constraint)
+            p.insert_tile(constraint, best)
+            p.do_routing()
+            worst = pick_t.pick_worst()
+            p.remove_tile(worst)
+            best2 = p.find_best_place(worst)
+            p.insert_tile(worst, best2)
+            p.do_routing()
+        p.do_routing()
+
+        return True
+
+class IterPickTactic(Tactic):
+    def __init__(self, p):
+        Tactic.__init__(self, p)
+        self.counter = 0
+        self.max_no_improvement = len(p.constraints) * 10
+
+    def pick_worst(self):
+        p = self.parent
+        ret = p.constraints[self.counter % len(p.constraints)]
+        self.counter += 1
+        return ret
+
+class CostlyTilePickTactic(Tactic):
+    max_no_improvement = 100
+    def __init__(self, p):
+        Tactic.__init__(self, p)
+        self.rip_tabu = []
+
+    def pick_worst(self):
+        p = self.parent
+        costs = {node: max(0, data['usage'] - data['capacity']) for node, data in p.arch.nodes(data=True)}
+        worstc = None
+        worstcost = 0
+        for constr in p.placement.iterkeys():
+            if constr in self.rip_tabu: continue
+            cost = sum(sum(sum(costs[node] for node in p.chains[var]) for var in var_row) for var_row in constr.tile)
+            if worstc is None or cost > worstcost:
+                worstc = constr
+                worstcost = cost
+        if worstc is None:
+            worstc = random.choice(p.placement.keys())
+        self.rip_tabu.append(worstc)
+        if len(self.rip_tabu) > 10:
+            self.rip_tabu.pop(0)
+        return worstc
+
 
 
 class TilePlacementHeuristic(object):
+    """Heuristic constraint placer. Tries to decrease overused qubits by ripping and rerouting"""
     def __init__(self, constraints, archGraph, choices):
         # type: (List[Constraint], nx.Graph, List[List[Any]]) -> None
-        # list of constraints. each constraint has a set of variables and a weight. could use the factor graph
         self.constraints = constraints
-        # target graph. each node is a set of edges in the original graph, each edge is a set of frontier vertices
-        # somehow the possible choices are tagged
-        # xxx: edges can be grouped if they are symmetrical, verify this
         self.arch = archGraph
-        self.rounds = 1000
-        self.counter = 0
         self.placement = dict()
         self.chains = {}
         self.choices = choices
-        self.rip_tabu = []
+        self.best_found = (None,)
+        self._init_tactics = [BFSInitTactic]+[RandomInitTactic]*9
+        self._pick_tactics = [CostlyTilePickTactic, IterPickTactic, CostlyTilePickTactic]
 
     def constraint_fit(self, choice, constraint):
         for (node, req) in zip(choice, constraint.tile):
@@ -40,51 +141,9 @@ class TilePlacementHeuristic(object):
 
         return True
 
-    def init_placement(self):
-        choices = self.choices
-        for constraint in self.constraints:
-            possible_choices = [x for x in choices if self.constraint_fit(x, constraint)]
-            if not possible_choices:
-                return False
-            position = random.choice(possible_choices)
-            self.insert_tile(constraint, position)
-        self.do_routing()
-        return True
-
-    def init_placement_bfs(self):
-        cg = nx.Graph()
-        vartoconst = defaultdict(list)
-        for constraint in self.constraints:
-            cg.add_node(constraint)
-            for vset in constraint.tile:
-                for v in vset:
-                    vartoconst[v].append(constraint)
-
-        for cset in vartoconst.itervalues():
-            for v1,v2 in combinations(cset,2):
-                cg.add_edge(v1,v2)
-
-        centrality = nx.betweenness_centrality(cg)
-        start = max(cg.nodes(), key=lambda x: centrality[x])
-        starttile = self.choices[len(self.choices)/2]
-        self.insert_tile(start, starttile)
-        worst = None
-        for _, constraint in nx.bfs_edges(cg, start):
-            best = self.find_best_place(constraint)
-            self.insert_tile(constraint, best)
-            self.do_routing()
-            worst = self.pick_worst()
-            self.remove_tile(worst)
-            best2 = self.find_best_place(worst)
-            self.insert_tile(worst, best2)
-        self.do_routing()
-
-        return True
-
-
     def do_routing(self):
         placement = self.tile_to_vars()
-        self.router = MinMaxRouter(self.arch, placement, epsilon=1)
+        self.router = MinMaxRouter(self.arch, placement, epsilon=0.1)
         self.router.run(10)
         self.chains = self.router.result
         for node,data in self.arch.nodes(data=True):
@@ -94,50 +153,53 @@ class TilePlacementHeuristic(object):
                 self.arch.nodes[node]["usage"] += 1
 
     def run(self):
-        if not self.init_placement():
-            return False
-
-        for round in xrange(self.rounds):
-            if self.is_valid_embedding():
+        for TClass in self._init_tactics:
+            init_tactic = TClass(self)
+            if not init_tactic.init_placement():
+                return False
+            self.save_best()
+            if self.do_try():
                 return True
-            print(self.score(), [self.placement[c] for c in self.constraints])
-            remove_choice = self.pick_worst()
-            self.remove_tile(remove_choice)
-            best_place = self.find_best_place(remove_choice)
-            self.insert_tile(remove_choice, best_place)
-            self.do_routing()
-
         return False
+
+    def do_try(self):
+        for TClass in self._pick_tactics:
+            tactic = TClass(self)
+            no_improvement = 0
+            while no_improvement <= tactic.max_no_improvement:
+                if self.is_valid_embedding():
+                    return True
+
+                score = self.score()
+                print(score, [self.placement[c] for c in self.constraints])
+                if self.save_best(if_score=score):
+                    no_improvement = 0
+                else:
+                    no_improvement += 1
+                remove_choice = tactic.pick_worst()
+                self.remove_tile(remove_choice)
+                best_place = self.find_best_place(remove_choice)
+                self.insert_tile(remove_choice, best_place)
+                self.do_routing()
+
+        return self.is_valid_embedding()
+
+    def save_best(self, if_score=None):
+        if self.best_found[0] is None or if_score < self.best_found[0]:
+            self.best_found = (if_score, self.placement, self.chains)
+            return True
+        else:
+            return False
 
 
     def is_valid_embedding(self):
         return all(data['usage'] <= data['capacity'] for _,data in self.arch.nodes(data=True))
 
+    def scores(self):
+        return {n:max(0, data['usage'] - data['capacity']) for n, data in self.arch.nodes(data=True)}
+
     def score(self):
-        return sum(max(0, data['usage'] - data['capacity']) for _, data in self.arch.nodes(data=True))
-
-    def pick_worst_iter(self):
-        ret = self.constraints[self.counter % len(self.constraints)]
-        self.counter += 1
-        return ret
-
-    def pick_worst(self):
-        costs = {node: max(0, data['usage'] - data['capacity']) for node, data in self.arch.nodes(data=True)}
-        worstc = None
-        worstcost = 0
-        for constr in self.placement.iterkeys():
-            if constr in self.rip_tabu: continue
-            cost = sum(sum(sum(costs[node] for node in self.chains[var]) for var in var_row) for var_row in constr.tile)
-            if worstc is None or cost > worstcost:
-                worstc = constr
-                worstcost = cost
-        if worstc is None:
-            worstc = random.choice(self.placement.keys())
-        self.rip_tabu.append(worstc)
-        if len(self.rip_tabu) > 10:
-            self.rip_tabu.pop(0)
-        return worstc
-
+        return sum(self.scores().itervalues())
 
     def remove_tile(self, constr, clean_chains=True):
         old =  self.placement[constr]

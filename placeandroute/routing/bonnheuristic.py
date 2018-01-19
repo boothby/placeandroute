@@ -1,13 +1,14 @@
 import random as rand
 from typing import Optional, List, Any, Tuple, Dict, FrozenSet, Iterable
 import networkx as nx
-from math import exp
+from math import exp, log
 from collections import defaultdict, Counter
 from typing import Set
 
 
 def fast_steiner_tree(graph, voi_iter):
     # type: (nx.Graph, List[Any]) -> FrozenSet[Any]
+    """Finds a low-cost Steiner tree by progressively connecting the terminal vertices"""
     ephnode = "ephemeral"
     graph.add_edge(ephnode, next(voi_iter), weight=0)
     for n in voi_iter:
@@ -24,6 +25,7 @@ def fast_steiner_tree(graph, voi_iter):
 
 def choice_weighted(l):
     # type: (List[Tuple[Any,float]]) -> Any
+    """Choose from a list when each element is paired with a probability"""
     r = rand.random()
     for t, prob in l:
         if r < prob:
@@ -34,18 +36,21 @@ def choice_weighted(l):
 
 
 class MinMaxRouter(object):
+    """Router that uses min-max resource allocation"""
+
     def __init__(self, graph, terminals, epsilon=1):
         # type: (nx.Graph, Dict[Any, Any], Optional[float]) -> None
         self.result = dict()
         self.nodes = terminals.keys()
         self.terminals = terminals
         self.wgraph = nx.DiGraph(graph)
-        self.epsilon = epsilon
+        self.epsilon = float(epsilon)
 
         self._initialize_weights()
 
 
     def _initialize_weights(self):
+        """Initializes weights. Sets the edge weights on the terminals, in order to discourage chains passing by terminals"""
         terminals = self.terminals
         for n1, n2 in self.wgraph.edges():
             data = self.wgraph.edges[n1,n2]
@@ -60,6 +65,7 @@ class MinMaxRouter(object):
 
     def increase_weights(self, nodes):
         # type: (Iterable[Any]) -> None
+        """Increase weight on incoming edges on a set of nodes"""
         for node in nodes:
             data = self.wgraph.nodes[node]
             data["usage"] += 1
@@ -71,10 +77,11 @@ class MinMaxRouter(object):
                 except OverflowError:
                     raise
 
-
-    def run(self, effort):
-        # type: (int) -> None
+    def run(self, effort=100):
+        # type: (Optional[int]) -> None
         candidatetrees = defaultdict(Counter)
+        convex_result = dict()
+
         if not self.terminals:
             return
 
@@ -87,16 +94,17 @@ class MinMaxRouter(object):
 
         ## compact candidatetrees
         for node in self.terminals.keys():
-            self.result[node] = [(t, float(q)/effort) for t,q in candidatetrees[node].most_common()]
-        self.derandomize(effort)
+            convex_result[node] = [(t, float(q)/effort) for t,q in candidatetrees[node].most_common()]
+
+        self.derandomize(convex_result, effort)
 
 
-    def derandomize(self,effort):
-        # type: (int) -> None
+    def derandomize(self, convex_result, effort):
+        # type: (Dict[Any, List[Tuple[FrozenSet[Any], float]]], int) -> None
         ret = dict()
         nodes = self.terminals.keys()
         for node in nodes:
-            c = self.result[node][0][0]
+            c = convex_result[node][0][0]
             ret[node] = c
 
         def invertres(r):
@@ -107,12 +115,15 @@ class MinMaxRouter(object):
             return ret
 
         def calcscore(r):
-            return sum(float(5)**len(x) for x in invertres(r).itervalues())
+            derandom_coeff = log(self.wgraph.number_of_nodes()) # high to discourage overlap
+            # use usage - capacity instead of usage/capacity, punish only overusage
+            return sum(exp(derandom_coeff*max(0, len(x)-self.wgraph.nodes[n]["capacity"]))
+                       for n,x in invertres(r).iteritems())
 
         score = calcscore(ret)
         for _ in range(effort):
           for node in nodes:
-            c = choice_weighted(self.result[node])
+            c = choice_weighted(convex_result[node])
             oldc = ret[node]
             if c == oldc: continue
             ret[node] = c
@@ -129,9 +140,6 @@ class MinMaxRouter(object):
         # type: (Any) -> Set[Any]
         return self.result[node]
 
-    def get_cost(self):
-        # type: () -> Dict[Any, float]
-        return {n: len(g) for n, g in self.result.iteritems()}
 
     def is_present(self, p):
         # type: (Any) -> bool
