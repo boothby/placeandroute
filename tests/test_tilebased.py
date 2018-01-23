@@ -56,3 +56,17 @@ class TestTileBased(TestCase):
         print repr(h.chains)
         show_result(s, g, h)
 
+    def test4(self):
+        with open(dirname(__file__) + "/../simple60.cnf") as f:
+            cnf = (parse_cnf(f))
+        cnf = [map(lambda  x: x//10, clause) for clause in cnf[:30]]
+        cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
+        s = 8
+        g, chs = chimeratiles(s,s)
+        h = TilePlacementHeuristic(cs, g, chs)
+        print h.run()
+        for c, t in h.placement.iteritems():
+            print c.tile, t
+        print repr(h.chains)
+        show_result(s, g, h)
+

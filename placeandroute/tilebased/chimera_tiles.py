@@ -1,5 +1,8 @@
+import random
+
 import networkx as nx
 from typing import List, Dict
+from itertools import product
 
 
 def chimeratiles(w,h):
@@ -28,69 +31,62 @@ def chimeratiles(w,h):
 
 def expand_solution(g, chains, cg):
     # type: (nx.Graph, Dict[int, List[int]], nx.Graph) -> Dict[int, List[int]]
-    x = dict()
+    ret = dict()
     alreadymapped = set()
     assert all(cg.has_edge(n1 * 4, n2 * 4) for n1, n2 in g.edges())
-    for k, v in sorted(chains.items(), key=lambda (k,v): -len(v)):
+    assert all(cg.has_edge(n1 * 4 +1, n2 * 4 +1) for n1, n2 in g.edges())
+    assert all(cg.has_edge(n1 * 4 , n2 * 4 +1) for n1, n2, data in g.edges(data=True) if data["capacity"] == 16)
+
+
+    for problemNode, tile_chain in sorted(chains.items(), key=lambda (k,v): -len(v)):
         # single node case this is easy
-        if len(v) == 1:
-            nodegroup = next(iter(v))
+        if len(tile_chain) == 1:
+            nodegroup = next(iter(tile_chain))
             choice = range(nodegroup * 4, (nodegroup+1)*4)
             choice = filter(lambda  x: x not in alreadymapped, choice)[:1]
             alreadymapped.update(choice)
-            x[k]= choice
+            ret[problemNode]= choice
             continue
 
         #long chain. rationale: build the subgraph of possible chains, then trim it
         #first filter already used nodes, then pick a connected component that has at least one choice
         # for each group, trim the choices slowly
-        vs = []
-        for nodegroup in v:
-            choices = range(nodegroup * 4, (nodegroup + 1) * 4)
-            choices = filter(lambda x: x not in alreadymapped, choices)
-            assert choices
-            vs.append(choices)
-        allchoices = reduce(list.__add__, vs)
-        sg = cg.subgraph(allchoices)  # type: nx.Graph
-        chosen_sg = None
-        for component in nx.connected_components(sg):
-            #gcomponent = sg.subgraph(component)
-            if all(any(n in component for n in choice) for choice in vs) and chosen_sg is None:
-                chosen_sg = component
-            else:
-                for n in component:
-                    allchoices.remove(n)
-                    for v in vs:
-                        if n in v: v.remove(n)
-        assert chosen_sg is not None, (sg.nodes(), sg.edges())
-        sg = sg.subgraph(chosen_sg)
-        sg = nx.minimum_spanning_tree(sg)
-        assert nx.is_connected(sg), (list(nx.connected_components(sg)), allchoices, vs)
-        noprogress = 0
-        while any(len(v) > 1 for v in vs):
-            noprogress += 1
-            for v in vs:
-                if len(v) == 1: continue
-                if not all(n in sg.nodes() for n in v):
-                    raise Exception
-                nn = filter(lambda n: sg.degree(n) == 1, v)
-                if len(nn) == len(v): nn.pop(0)
-                if nn:
-                    for n in nn:
-                        sg.remove_node(n)
-                        allchoices.remove(n)
-                        v.remove(n)
-                    noprogress = 0
-            if noprogress > 1000:
-                for v in vs:
-                    if len(v) > 1:
-                        n = v.pop(0)
-                        sg.remove_node(n)
-                        allchoices.remove(n)
-                        noprogress=0
-                        break
+        node_choices = dict()
+        tile_graph = g.subgraph(tile_chain)
+        for tile  in tile_chain:
+            node_choices[tile] = [tile*4 + x for x in range(4) if tile*4+x not in alreadymapped]
+            assert node_choices[tile]
 
-        vs = [v[0] for v in vs]
-        alreadymapped.update(vs)
-        x[k] = vs
-    return x
+        has_choice = False
+
+        assert nx.is_connected(tile_graph)
+
+        choices_sg = None # type: nx.Graph
+        for ccomp in nx.connected_components(cg.subgraph(reduce(list.__add__, node_choices.itervalues()))):
+            if all(any(x in ccomp for x in choiceset) for choiceset in node_choices.itervalues()):
+                choices_sg = cg.subgraph(ccomp)
+                break
+
+        assert choices_sg is not None
+        for tile in tile_chain:
+            node_choices[tile] = filter(choices_sg.has_node, node_choices[tile])
+
+        while not nx.is_connected(choices_sg.subgraph(choices[0] for choices in node_choices.itervalues())):
+            t1 = random.choice(node_choices.keys())
+            for ta, tb in nx.dfs_edges(nx.minimum_spanning_tree(tile_graph), t1):
+                find_edges = list((n1, n2) for n1, n2 in product(node_choices[ta], node_choices[tb])
+                                  if choices_sg.has_edge(n1, n2))
+                if not find_edges:
+                    break
+                n1, n2 = find_edges[0]
+                node_choices[ta].remove(n1)
+                node_choices[ta].insert(0, n1)
+                node_choices[tb].remove(n2)
+                node_choices[tb].insert(0, n2)
+
+        chosen = [x[0] for x in node_choices.values()]
+
+        assert nx.is_connected(cg.subgraph(chosen))
+        alreadymapped.update(chosen)
+        ret[problemNode] = chosen
+    return ret
