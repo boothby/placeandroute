@@ -3,7 +3,7 @@ import random
 from collections import defaultdict
 from itertools import combinations
 
-from math import log
+from math import log, exp
 from typing import List, Any, overload
 from placeandroute.routing.bonnheuristic import MinMaxRouter
 import networkx as nx
@@ -65,18 +65,20 @@ class BFSInitTactic(Tactic):
         pick_t = CostlyTilePickTactic(p)
         centrality = nx.betweenness_centrality(cg)
         start = max(cg.nodes(), key=lambda x: centrality[x])
-        starttile = p.choices[len(p.choices) / 2]
+        arch_centrality = nx.betweenness_centrality(p.arch)
+        starttile = max(p.choices, key=lambda (x,y): arch_centrality[x] + arch_centrality[y])
         p.insert_tile(start, starttile)
-        worst = None
+        best_place = RoughFindPlaceTactic(p)
+
         for _, constraint in nx.bfs_edges(cg, start):
-            best = p.find_best_place(constraint)
+            best = best_place.find_best_place(constraint)
             p.insert_tile(constraint, best)
-            p.do_routing()
+            p.do_routing(10)
             worst = pick_t.pick_worst()
             p.remove_tile(worst)
-            best2 = p.find_best_place(worst)
+            best2 = best_place.find_best_place(worst)
             p.insert_tile(worst, best2)
-            p.do_routing()
+            p.do_routing(10)
         p.do_routing()
 
         return True
@@ -85,7 +87,7 @@ class IterPickTactic(Tactic):
     def __init__(self, p):
         Tactic.__init__(self, p)
         self.counter = 0
-        self.max_no_improvement = len(p.constraints) * 10
+        self.max_no_improvement = len(p.constraints) #* 10
 
     def pick_worst(self):
         p = self.parent
@@ -117,6 +119,70 @@ class CostlyTilePickTactic(Tactic):
             self.rip_tabu.pop(0)
         return worstc
 
+class RoughFindPlaceTactic(Tactic):
+    def find_best_place(self, constraint):
+        parent = self.parent
+        placement = parent.tile_to_vars()
+        epsilon = log(sum(d["capacity"] for _, d in parent.arch.nodes(data=True)))
+
+        router = MinMaxRouter(parent.arch, placement, epsilon=epsilon)
+        wgraph = router.wgraph
+
+        scores = []
+        for vset in constraint.tile:
+            score = defaultdict(float)
+            for v in vset:
+                if v not in placement: continue
+                for chain_node in placement[v]:
+                    data = wgraph.nodes[chain_node]
+                    score[chain_node] = exp(epsilon*max(0, data['usage']-data['capacity']))-1
+
+                ephnode = ("ephemeral",v)
+                wgraph.add_edges_from([(ephnode,chain_node) for chain_node in placement[v]], weight=0)
+                lengths = nx.single_source_dijkstra_path_length(wgraph, ephnode)
+                for n, length in lengths.iteritems():
+                    score[n] += length
+                wgraph.remove_node(ephnode)
+            scores.append(score)
+
+        best_score = 0
+        best_choice = None
+        for choice in parent.choices:
+            score = scores[0][choice[0]] + scores[1][choice[1]]
+            if best_choice is None or score < best_score:
+                best_choice = choice
+                best_score = score
+        return best_choice
+
+class ChainsFindPlaceTactic(Tactic):
+    def find_best_place(self, constraint):
+        parent = self.parent
+        placement = parent.chains
+        epsilon = log(sum(d["capacity"] for _, d in parent.arch.nodes(data=True)))
+        router = MinMaxRouter(parent.arch, placement, epsilon=epsilon)
+        wgraph = router.wgraph
+        scores = []
+
+        for vset in constraint.tile:
+            score = defaultdict(float)
+            for v in vset:
+                if v not in placement: continue
+                ephnode = ("ephemeral",v)
+                wgraph.add_edges_from([(ephnode,chain_node) for chain_node in placement[v]], weight=0)
+                lengths = nx.single_source_dijkstra_path_length(wgraph, ephnode)
+                for n, length in lengths.iteritems():
+                    score[n] += length
+                wgraph.remove_node(ephnode)
+            scores.append(score)
+
+        best_score = 0
+        best_choice = None
+        for choice in parent.choices:
+            score = scores[0][choice[0]] + scores[1][choice[1]]
+            if best_choice is None or score < best_score:
+                best_choice = choice
+                best_score = score
+        return best_choice
 
 
 class TilePlacementHeuristic(object):
@@ -129,8 +195,12 @@ class TilePlacementHeuristic(object):
         self.chains = {}
         self.choices = choices
         self.best_found = (None,)
-        self._init_tactics = [BFSInitTactic]+[RandomInitTactic]*9
+        self._init_tactics = [BFSInitTactic, RandomInitTactic]*3+[RandomInitTactic]*4
         self._pick_tactics = [CostlyTilePickTactic, IterPickTactic, CostlyTilePickTactic]
+        self._find_tactic = ChainsFindPlaceTactic(self)
+
+    def find_best_place(self, constraint):
+        return self._find_tactic.find_best_place(constraint)
 
     def constraint_fit(self, choice, constraint):
         for (node, req) in zip(choice, constraint.tile):
@@ -141,10 +211,10 @@ class TilePlacementHeuristic(object):
 
         return True
 
-    def do_routing(self):
+    def do_routing(self, effort=100):
         placement = self.tile_to_vars()
-        self.router = MinMaxRouter(self.arch, placement, epsilon=0.1)
-        self.router.run(10)
+        self.router = MinMaxRouter(self.arch, placement, epsilon=1.0/effort)
+        self.router.run(effort)
         self.chains = self.router.result
         for node,data in self.arch.nodes(data=True):
             data["usage"] = 0
@@ -163,6 +233,7 @@ class TilePlacementHeuristic(object):
         return False
 
     def do_try(self):
+        effort = 10.0
         for TClass in self._pick_tactics:
             tactic = TClass(self)
             no_improvement = 0
@@ -174,13 +245,15 @@ class TilePlacementHeuristic(object):
                 print(score, [self.placement[c] for c in self.constraints])
                 if self.save_best(if_score=score):
                     no_improvement = 0
+                    effort += 5.0
                 else:
                     no_improvement += 1
+                    #effort += 0.1
                 remove_choice = tactic.pick_worst()
                 self.remove_tile(remove_choice)
                 best_place = self.find_best_place(remove_choice)
                 self.insert_tile(remove_choice, best_place)
-                self.do_routing()
+                self.do_routing(int(effort))
 
         return self.is_valid_embedding()
 
@@ -221,35 +294,6 @@ class TilePlacementHeuristic(object):
                         self.chains[var] = self.chains[var].difference({leaf})
                         self.arch.nodes[leaf]['usage'] -= 1
                         leaf = newleaf
-
-
-    def find_best_place(self, constraint):
-        placement = self.tile_to_vars()
-        router = MinMaxRouter(self.arch, placement, epsilon=log(2000))
-        wgraph = router.wgraph
-        #ephnodes = []
-        scores = []
-        for vset in constraint.tile:
-            score = defaultdict(float)
-            for v in vset:
-                if v not in placement: continue
-                ephnode = ("ephemeral",v)
-                #ephnodes.append(ephnode)
-                wgraph.add_edges_from([(ephnode,chain_node) for chain_node in placement[v]], weight=0)
-                lengths = nx.single_source_dijkstra_path_length(wgraph, ephnode)
-                for n, length in lengths.iteritems():
-                    score[n] += length
-                wgraph.remove_node(ephnode)
-            scores.append(score)
-
-        best_score = 0
-        best_choice = None
-        for choice in self.choices:
-            score = scores[0][choice[0]] + scores[1][choice[1]]
-            if best_choice is None or score < best_score:
-                best_choice = choice
-                best_score = score
-        return best_choice
 
 
     def tile_to_vars(self):

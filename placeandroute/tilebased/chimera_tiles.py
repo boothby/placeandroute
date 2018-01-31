@@ -67,22 +67,40 @@ def expand_solution(g, chains, cg):
                 choices_sg = cg.subgraph(ccomp)
                 break
 
-        assert choices_sg is not None
+        if choices_sg is None:
+            # give up
+            chosen = [x*4 for x in tile_chain]
+            alreadymapped.update(chosen)
+            ret[problemNode] = chosen
+            continue
+
+        assert choices_sg is not None, node_choices
         for tile in tile_chain:
             node_choices[tile] = filter(choices_sg.has_node, node_choices[tile])
 
+
         while not nx.is_connected(choices_sg.subgraph(choices[0] for choices in node_choices.itervalues())):
-            t1 = random.choice(node_choices.keys())
-            for ta, tb in nx.dfs_edges(nx.minimum_spanning_tree(tile_graph), t1):
-                find_edges = list((n1, n2) for n1, n2 in product(node_choices[ta], node_choices[tb])
-                                  if choices_sg.has_edge(n1, n2))
-                if not find_edges:
+            print("inserting var {}".format(problemNode))
+            root_nodes = node_choices.keys()
+            random.shuffle(root_nodes)
+            for t1 in root_nodes:
+                random.shuffle(node_choices[t1])
+                find_edges = None
+                for ta, tb in nx.dfs_edges(nx.minimum_spanning_tree(tile_graph), t1):
+                    n1 = node_choices[ta][0]
+                    find_edges = list(n2 for n2 in (node_choices[tb])
+                                      if choices_sg.has_edge(n1, n2))
+                    if not find_edges:
+                        break
+                    n2 = find_edges[0]
+                    #node_choices[ta].remove(n1)
+                    #node_choices[ta].insert(0, n1)
+                    node_choices[tb].remove(n2)
+                    node_choices[tb].insert(0, n2)
+                if find_edges:
+                    print "ok"
                     break
-                n1, n2 = find_edges[0]
-                node_choices[ta].remove(n1)
-                node_choices[ta].insert(0, n1)
-                node_choices[tb].remove(n2)
-                node_choices[tb].insert(0, n2)
+
 
         chosen = [x[0] for x in node_choices.values()]
 

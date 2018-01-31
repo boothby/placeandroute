@@ -6,13 +6,13 @@ from collections import defaultdict, Counter
 from typing import Set
 
 
-def fast_steiner_tree(graph, voi_iter):
+def fast_steiner_tree(graph, voi_iter, heuristic=None):
     # type: (nx.Graph, List[Any]) -> FrozenSet[Any]
     """Finds a low-cost Steiner tree by progressively connecting the terminal vertices"""
     ephnode = "ephemeral"
     graph.add_edge(ephnode, next(voi_iter), weight=0)
     for n in voi_iter:
-        path = nx.astar_path(graph, ephnode, n)
+        path = nx.astar_path(graph, ephnode, n, heuristic=heuristic)
         for nn in path[2:]:
             if nn not in graph.neighbors(ephnode):
                 graph.add_edge(ephnode, nn, weight=0)
@@ -45,9 +45,12 @@ class MinMaxRouter(object):
         self.terminals = terminals
         self.wgraph = nx.DiGraph(graph)
         self.epsilon = float(epsilon)
+        self._astar_heuristic = defaultdict(lambda: defaultdict(float))
 
         self._initialize_weights()
 
+    def _heuristic_len(self,a,b):
+        return self._astar_heuristic[a][b]
 
     def _initialize_weights(self):
         """Initializes weights. Sets the edge weights on the terminals, in order to discourage chains passing by terminals"""
@@ -76,11 +79,14 @@ class MinMaxRouter(object):
                     data["weight"] *= exp(self.epsilon * usage)
                 except OverflowError:
                     raise
+                #self._astar_heuristic[node][edge[1]] = data["weight"]
 
     def run(self, effort=100):
         # type: (Optional[int]) -> None
         candidatetrees = defaultdict(Counter)
         convex_result = dict()
+        #self._astar_heuristic = dict(nx.all_pairs_dijkstra_path_length(self.wgraph))
+
 
         if not self.terminals:
             return
@@ -88,6 +94,7 @@ class MinMaxRouter(object):
         for _ in xrange(effort):
             for node, terminals in self.terminals.iteritems():
                 #newtree = make_steiner_tree(self.wgraph, list(terminals))
+                #newtree = fast_steiner_tree(self.wgraph, iter(terminals), heuristic=self._heuristic_len)
                 newtree = fast_steiner_tree(self.wgraph, iter(terminals))
                 candidatetrees[node][newtree] += 1
                 self.increase_weights(newtree)
@@ -115,20 +122,20 @@ class MinMaxRouter(object):
             return ret
 
         def calcscore(r):
-            derandom_coeff = log(self.wgraph.number_of_nodes()) # high to discourage overlap
+            derandom_coeff = log(2*self.wgraph.number_of_nodes()) # high to discourage overlap
             # use usage - capacity instead of usage/capacity, punish only overusage
             return sum(exp(derandom_coeff*max(0, len(x)-self.wgraph.nodes[n]["capacity"]))
                        for n,x in invertres(r).iteritems())
 
         score = calcscore(ret)
-        for _ in range(effort):
+        for temp in range(effort):
           for node in nodes:
             c = choice_weighted(convex_result[node])
             oldc = ret[node]
             if c == oldc: continue
             ret[node] = c
             newscore = calcscore(ret)
-            if newscore < score:
+            if newscore < score or rand.random()< 0.1*score/(newscore * (temp+1)):
                 score = newscore
             else:
                 ret[node] = oldc

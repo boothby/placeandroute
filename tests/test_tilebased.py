@@ -45,7 +45,7 @@ class TestTileBased(TestCase):
     def test3(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:
             cnf = (parse_cnf(f))
-        cnf = [map(lambda  x: x//2, clause) for clause in cnf[:100]]
+        cnf = [map(lambda  x: x//3, clause) for clause in cnf[:90]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
         g, chs = chimeratiles(s,s)
@@ -59,7 +59,7 @@ class TestTileBased(TestCase):
     def test4(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:
             cnf = (parse_cnf(f))
-        cnf = [map(lambda  x: x//10, clause) for clause in cnf[:30]]
+        cnf = [map(lambda  x: x//6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 8
         g, chs = chimeratiles(s,s)
