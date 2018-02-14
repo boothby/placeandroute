@@ -73,13 +73,10 @@ class BFSInitTactic(Tactic):
         for _, constraint in nx.bfs_edges(cg, start):
             best = best_place.find_best_place(constraint)
             p.insert_tile(constraint, best)
-            p.do_routing(10)
             worst = pick_t.pick_worst()
             p.remove_tile(worst)
             best2 = best_place.find_best_place(worst)
             p.insert_tile(worst, best2)
-            p.do_routing(10)
-        p.do_routing()
 
         return True
 
@@ -96,7 +93,7 @@ class IterPickTactic(Tactic):
         return ret
 
 class CostlyTilePickTactic(Tactic):
-    max_no_improvement = 100
+    max_no_improvement = 1000
     def __init__(self, p):
         Tactic.__init__(self, p)
         self.rip_tabu = []
@@ -184,6 +181,70 @@ class ChainsFindPlaceTactic(Tactic):
                 best_score = score
         return best_choice
 
+class InsertTactic(Tactic):
+    def insert_tile(self, constraint, tile):
+        # type: (Constraint, List[List[Any]]) -> None
+        p = self.parent
+        p.placement[constraint] = tile
+        self.do_routing()
+
+    def do_routing(self):
+        pass
+
+
+class RerouteInsertTactic(InsertTactic):
+    def do_routing(self, effort=100):
+        p = self.parent
+        placement = p.tile_to_vars()
+        router = MinMaxRouter(p.arch, placement, epsilon=1.0/effort)
+        router.run(effort)
+        p.chains = router.result
+        for node,data in p.arch.nodes(data=True):
+            data["usage"] = 0
+        for nodes in p.chains.itervalues():
+            for node in nodes:
+                p.arch.nodes[node]["usage"] += 1
+
+class SimpleInsertTactic(InsertTactic):
+    def insert_tile(self, constraint, tile):
+        # type: (Constraint, List[List[Any]]) -> None
+        p = self.parent
+        p.placement[constraint] = tile
+        #add shortest-path chains
+        chains = p.chains
+        wgraph = nx.DiGraph(p.arch)
+        def set_weights(nodeset):
+            for node in nodeset:
+                ndat = wgraph.nodes[node]
+                usage = max(0, ndat["usage"] - ndat["capacity"])
+                for _, _, data in wgraph.in_edges(node, data=True):
+                    data["weight"] = exp(log(2000) * usage)
+
+        set_weights(wgraph.nodes)
+
+        for var_row,choice in zip(constraint.tile, tile):
+            for var in var_row:
+                if var not in chains:
+                    chains[var] = frozenset({choice})
+                    wgraph.nodes[choice]["usage"] += 1
+                    set_weights([choice])
+                    continue
+                _, path = nx.multi_source_dijkstra(wgraph, chains[var], choice)
+                path = set(path)
+                path.difference_update(chains[var])
+                for node in path:
+                    wgraph.nodes[node]["usage"] += 1
+                set_weights(path)
+                chains[var]= chains[var].union(frozenset(path))
+
+        for node, data in p.arch.nodes(data=True):
+            data["usage"] = 0
+        for nodes in p.chains.itervalues():
+            for node in nodes:
+                p.arch.nodes[node]["usage"] += 1
+        for node in wgraph.nodes:
+            assert wgraph.nodes[node]["usage"] == p.arch.nodes[node]["usage"]
+
 
 class TilePlacementHeuristic(object):
     """Heuristic constraint placer. Tries to decrease overused qubits by ripping and rerouting"""
@@ -198,6 +259,9 @@ class TilePlacementHeuristic(object):
         self._init_tactics = [BFSInitTactic, RandomInitTactic]*3+[RandomInitTactic]*4
         self._pick_tactics = [CostlyTilePickTactic, IterPickTactic, CostlyTilePickTactic]
         self._find_tactic = ChainsFindPlaceTactic(self)
+        #self._insert_tactic = RerouteInsertTactic(self)
+        self._insert_tactic = SimpleInsertTactic(self)
+
 
     def find_best_place(self, constraint):
         return self._find_tactic.find_best_place(constraint)
@@ -211,17 +275,6 @@ class TilePlacementHeuristic(object):
 
         return True
 
-    def do_routing(self, effort=100):
-        placement = self.tile_to_vars()
-        self.router = MinMaxRouter(self.arch, placement, epsilon=1.0/effort)
-        self.router.run(effort)
-        self.chains = self.router.result
-        for node,data in self.arch.nodes(data=True):
-            data["usage"] = 0
-        for nodes in self.chains.itervalues():
-            for node in nodes:
-                self.arch.nodes[node]["usage"] += 1
-
     def run(self):
         for TClass in self._init_tactics:
             init_tactic = TClass(self)
@@ -234,6 +287,7 @@ class TilePlacementHeuristic(object):
 
     def do_try(self):
         effort = 10.0
+        rare_reroute = 0
         for TClass in self._pick_tactics:
             tactic = TClass(self)
             no_improvement = 0
@@ -245,15 +299,18 @@ class TilePlacementHeuristic(object):
                 print(score, [self.placement[c] for c in self.constraints])
                 if self.save_best(if_score=score):
                     no_improvement = 0
-                    effort += 5.0
                 else:
                     no_improvement += 1
+                    rare_reroute += 1
+                    if rare_reroute > 50:
+                        rare_reroute = 0
+                        effort += 5.0
+                        RerouteInsertTactic(self).do_routing(int(effort))
                     #effort += 0.1
                 remove_choice = tactic.pick_worst()
                 self.remove_tile(remove_choice)
                 best_place = self.find_best_place(remove_choice)
                 self.insert_tile(remove_choice, best_place)
-                self.do_routing(int(effort))
 
         return self.is_valid_embedding()
 
@@ -284,6 +341,8 @@ class TilePlacementHeuristic(object):
                     if var not in self.chains or node not in self.chains[var]:
                         break # should be hit only when var has been deleted from the previous row
                     if var not in placement:
+                        for deleted_node in self.chains[var]:
+                            self.arch.nodes[deleted_node]['usage'] -= 1
                         del self.chains[var]
                         break
                     chaintree = nx.Graph(self.arch.subgraph(self.chains[var]))
@@ -308,6 +367,6 @@ class TilePlacementHeuristic(object):
 
     def insert_tile(self, constraint, tile):
         # type: (Constraint, List[List[Any]]) -> None
-        self.placement[constraint] = tile
+        self._insert_tactic.insert_tile(constraint, tile)
 
 
