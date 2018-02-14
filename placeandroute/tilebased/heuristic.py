@@ -194,8 +194,24 @@ class InsertTactic(Tactic):
 
 class RerouteInsertTactic(InsertTactic):
     def do_routing(self, effort=100):
+        print "Rerouting..."
         p = self.parent
         placement = p.tile_to_vars()
+        router = MinMaxRouter(p.arch, placement, epsilon=1.0/effort)
+        router.run(effort)
+        p.chains = router.result
+        for node,data in p.arch.nodes(data=True):
+            data["usage"] = 0
+        for nodes in p.chains.itervalues():
+            for node in nodes:
+                p.arch.nodes[node]["usage"] += 1
+
+class IncrementalRerouteInsertTactic(InsertTactic):
+    def do_routing(self, effort=100):
+        p = self.parent
+        placement = p.tile_to_vars()
+        for k, vs in p.chains.iteritems():
+            placement[k] = set(placement[k]).union(vs)
         router = MinMaxRouter(p.arch, placement, epsilon=1.0/effort)
         router.run(effort)
         p.chains = router.result
@@ -260,7 +276,8 @@ class TilePlacementHeuristic(object):
         self._pick_tactics = [CostlyTilePickTactic, IterPickTactic, CostlyTilePickTactic]
         self._find_tactic = ChainsFindPlaceTactic(self)
         #self._insert_tactic = RerouteInsertTactic(self)
-        self._insert_tactic = SimpleInsertTactic(self)
+        #self._insert_tactic = SimpleInsertTactic(self)
+        self._insert_tactic = IncrementalRerouteInsertTactic(self)
 
 
     def find_best_place(self, constraint):

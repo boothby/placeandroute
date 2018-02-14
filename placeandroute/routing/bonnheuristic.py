@@ -6,16 +6,22 @@ from collections import defaultdict, Counter
 from typing import Set
 
 
-def fast_steiner_tree(graph, voi_iter, heuristic=None):
+def fast_steiner_tree(graph, voi, heuristic=None):
     # type: (nx.Graph, List[Any]) -> FrozenSet[Any]
     """Finds a low-cost Steiner tree by progressively connecting the terminal vertices"""
     ephnode = "ephemeral"
-    graph.add_edge(ephnode, next(voi_iter), weight=0)
-    for n in voi_iter:
-        path = nx.astar_path(graph, ephnode, n, heuristic=heuristic)
-        for nn in path[2:]:
+    voi_iter = iter(voi)
+    for node in next(voi_iter):
+        graph.add_edge(ephnode, node, weight=0)
+    for nset in voi_iter:
+        ephdest = "ephdestination"
+        for node in nset:
+            graph.add_edge(node, ephdest, weight=0)
+        path = nx.astar_path(graph, ephnode, ephdest, heuristic=heuristic)
+        for nn in path[2:-1]:
             if nn not in graph.neighbors(ephnode):
                 graph.add_edge(ephnode, nn, weight=0)
+        graph.remove_node(ephdest)
     treenodes = graph.neighbors(ephnode)
     graph.remove_node(ephnode)
     return frozenset(treenodes)
@@ -44,6 +50,7 @@ class MinMaxRouter(object):
         self.nodes = terminals.keys()
         self.terminals = terminals
         self.wgraph = nx.DiGraph(graph)
+        self.ugraph = graph
         self.epsilon = float(epsilon)
         self._astar_heuristic = defaultdict(lambda: defaultdict(float))
 
@@ -95,7 +102,8 @@ class MinMaxRouter(object):
             for node, terminals in self.terminals.iteritems():
                 #newtree = make_steiner_tree(self.wgraph, list(terminals))
                 #newtree = fast_steiner_tree(self.wgraph, iter(terminals), heuristic=self._heuristic_len)
-                newtree = fast_steiner_tree(self.wgraph, iter(terminals))
+                term_clusters = nx.connected_components(self.ugraph.subgraph(terminals))
+                newtree = fast_steiner_tree(self.wgraph, term_clusters)
                 candidatetrees[node][newtree] += 1
                 self.increase_weights(newtree)
 
