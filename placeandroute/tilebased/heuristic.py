@@ -100,7 +100,7 @@ class CostlyTilePickTactic(Tactic):
 
     def pick_worst(self):
         p = self.parent
-        costs = {node: max(0, data['usage'] - data['capacity']) for node, data in p.arch.nodes(data=True)}
+        costs = {node: exp(max(0, data['usage'] - data['capacity']))-1 for node, data in p.arch.nodes(data=True)}
         worstc = None
         worstcost = 0
         for constr in p.placement.iterkeys():
@@ -155,9 +155,16 @@ class ChainsFindPlaceTactic(Tactic):
     def find_best_place(self, constraint):
         parent = self.parent
         placement = parent.chains
-        epsilon = log(sum(d["capacity"] for _, d in parent.arch.nodes(data=True)))
-        router = MinMaxRouter(parent.arch, placement, epsilon=epsilon)
-        wgraph = router.wgraph
+        wgraph = nx.DiGraph(parent.arch)
+
+        def set_weights(nodeset):
+            for node in nodeset:
+                ndat = wgraph.nodes[node]
+                usage = max(float(ndat["usage"] )/ ndat["capacity"], ndat["usage"] - ndat["capacity"])
+                for _, _, data in wgraph.in_edges(node, data=True):
+                    data["weight"] = exp(log(2000) * usage)
+
+        set_weights(wgraph.nodes)
         scores = []
 
         for vset in constraint.tile:
@@ -319,15 +326,17 @@ class TilePlacementHeuristic(object):
                 else:
                     no_improvement += 1
                     rare_reroute += 1
-                    if rare_reroute > 50:
+                if rare_reroute > 20:
                         rare_reroute = 0
                         effort += 5.0
                         RerouteInsertTactic(self).do_routing(int(effort))
                     #effort += 0.1
-                remove_choice = tactic.pick_worst()
-                self.remove_tile(remove_choice)
-                best_place = self.find_best_place(remove_choice)
-                self.insert_tile(remove_choice, best_place)
+                else:
+                    remove_choice = tactic.pick_worst()
+                    self.remove_tile(remove_choice)
+                    #print self.score()
+                    best_place = self.find_best_place(remove_choice)
+                    self.insert_tile(remove_choice, best_place)
 
         return self.is_valid_embedding()
 
@@ -343,7 +352,7 @@ class TilePlacementHeuristic(object):
         return all(data['usage'] <= data['capacity'] for _,data in self.arch.nodes(data=True))
 
     def scores(self):
-        return {n:max(0, data['usage'] - data['capacity']) for n, data in self.arch.nodes(data=True)}
+        return {n:exp(max(0, data['usage'] - data['capacity']))-1 for n, data in self.arch.nodes(data=True)}
 
     def score(self):
         return sum(self.scores().itervalues())

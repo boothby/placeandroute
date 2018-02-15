@@ -107,11 +107,11 @@ def expand_solution(g, chains, cg):
         #del ret[k]
         problemsubg =g.subgraph(chains[k])
         search_space = improve_chain(cg, problemsubg, count, oldv)
-        for _ in xrange(1000):
+        for _ in xrange(10):
             ret[k] = sample_chain((search_space), problemsubg)
             new_score, new_count = calc_score(ret)
             if new_score < score: break
-        if new_score <= score or random.random() < 0.0001:
+        if new_score <= score or random.random() < 0.001:
             score = new_score
             count = new_count
             print "Overlapping qubits when expanding:", score
