@@ -68,7 +68,9 @@ class BFSInitTactic(Tactic):
         arch_centrality = nx.betweenness_centrality(p.arch)
         starttile = max(p.choices, key=lambda (x,y): arch_centrality[x] + arch_centrality[y])
         p.insert_tile(start, starttile)
-        best_place = RoughFindPlaceTactic(p)
+        #best_place = RoughFindPlaceTactic(p)
+        best_place = ChainsFindPlaceTactic(p)
+
 
         for _, constraint in nx.bfs_edges(cg, start):
             best = best_place.find_best_place(constraint)
@@ -155,6 +157,7 @@ class ChainsFindPlaceTactic(Tactic):
     def find_best_place(self, constraint):
         parent = self.parent
         placement = parent.chains
+        scaling_factor = log(2000)
         wgraph = nx.DiGraph(parent.arch)
 
         def set_weights(nodeset):
@@ -162,7 +165,7 @@ class ChainsFindPlaceTactic(Tactic):
                 ndat = wgraph.nodes[node]
                 usage = max(float(ndat["usage"] )/ ndat["capacity"], ndat["usage"] - ndat["capacity"])
                 for _, _, data in wgraph.in_edges(node, data=True):
-                    data["weight"] = exp(log(2000) * usage)
+                    data["weight"] = exp(scaling_factor * usage)
 
         set_weights(wgraph.nodes)
         scores = []
@@ -181,8 +184,16 @@ class ChainsFindPlaceTactic(Tactic):
 
         best_score = 0
         best_choice = None
+        mapsto = defaultdict(set)
+        for k, vs in placement.iteritems():
+            for v in vs:
+                mapsto[v].add(k)
+
         for choice in parent.choices:
-            score = scores[0][choice[0]] + scores[1][choice[1]]
+            unrelated = [mapsto[target].difference(varrow) for varrow, target in zip(constraint.tile, choice)]
+            unrel_score = sum(exp(scaling_factor * max(0, len(unrel_nodes)- wgraph.nodes[target]["capacity"]))-1
+                              for unrel_nodes, target in zip(unrelated, choice))
+            score = scores[0][choice[0]] + scores[1][choice[1]] + unrel_score
             if best_choice is None or score < best_score:
                 best_choice = choice
                 best_score = score
@@ -327,10 +338,9 @@ class TilePlacementHeuristic(object):
                     no_improvement += 1
                     rare_reroute += 1
                 if rare_reroute > 20:
-                        rare_reroute = 0
-                        effort += 5.0
-                        RerouteInsertTactic(self).do_routing(int(effort))
-                    #effort += 0.1
+                    rare_reroute = 0
+                    effort += 5.0
+                    RerouteInsertTactic(self).do_routing(int(effort))
                 else:
                     remove_choice = tactic.pick_worst()
                     self.remove_tile(remove_choice)

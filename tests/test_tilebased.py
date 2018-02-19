@@ -9,6 +9,7 @@ from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution
 from placeandroute.problemgraph import parse_cnf
 import networkx as nx
 import os
+from itertools import product
 
 def cnf_to_constraints(clauses, num_vars):
     ancilla = num_vars + 1
@@ -25,6 +26,20 @@ def show_result(s, g, h):
     for k, v in xdict.iteritems():
         x.add_node(k, mapto=v)
     interactive_embeddingview(x, s, False)
+
+def test_result(tile_graph, cnf, heur):
+    chains = heur.chains
+    for constraint in cnf:
+        assert heur.placement.has_key(constraint)
+        var_rows = constraint.tile
+        for v1, v2 in product(*var_rows):
+            if v1 == v2: continue
+            ch1 = chains[v1]
+            ch2 = chains[v2]
+            assert nx.is_connected(tile_graph.subgraph(ch1))
+            assert nx.is_connected(tile_graph.subgraph(ch2))
+            assert any(tile_graph.has_edge(n1,n2) for n1, n2 in product(ch1,ch2)), (v1, v2, constraint, heur.placement[constraint], ch1, ch2)
+
 
 
 class TestTileBased(TestCase):
@@ -68,5 +83,7 @@ class TestTileBased(TestCase):
         for c, t in h.placement.iteritems():
             print c.tile, t
         print repr(h.chains)
+        test_result(g, cs, h)
         show_result(s, g, h)
+
 

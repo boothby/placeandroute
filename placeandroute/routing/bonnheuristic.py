@@ -18,9 +18,10 @@ def fast_steiner_tree(graph, voi, heuristic=None):
         for node in nset:
             graph.add_edge(node, ephdest, weight=0)
         path = nx.astar_path(graph, ephnode, ephdest, heuristic=heuristic)
-        for nn in path[2:-1]:
-            if nn not in graph.neighbors(ephnode):
-                graph.add_edge(ephnode, nn, weight=0)
+        for nn in path[2:-2]:
+            graph.add_edge(ephnode, nn, weight=0)
+        for node in nset:
+            graph.add_edge(ephnode, node, weight=0)
         graph.remove_node(ephdest)
     treenodes = graph.neighbors(ephnode)
     graph.remove_node(ephnode)

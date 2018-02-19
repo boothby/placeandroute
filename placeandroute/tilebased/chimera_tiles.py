@@ -83,40 +83,45 @@ def calc_score(r):
     return sum(count.itervalues()) - len(count), count
 
 
-def expand_solution(g, chains, cg):
+def expand_solution(tile_graph, chains, chimera_graph):
     # type: (nx.Graph, Dict[int, List[int]], nx.Graph) -> Dict[int, List[int]]
     ret = dict()
 
-    assert all(cg.has_edge(n1 * 4, n2 * 4) for n1, n2 in g.edges())
-    assert all(cg.has_edge(n1 * 4 +1, n2 * 4 +1) for n1, n2 in g.edges())
-    assert all(cg.has_edge(n1 * 4 , n2 * 4 +1) for n1, n2, data in g.edges(data=True) if data["capacity"] == 16)
+    assert all(chimera_graph.has_edge(n1 * 4, n2 * 4) for n1, n2 in tile_graph.edges())
+    assert all(chimera_graph.has_edge(n1 * 4 + 1, n2 * 4 + 1) for n1, n2 in tile_graph.edges())
+    assert all(chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges(data=True) if data["capacity"] == 16)
+    assert all(not chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges(data=True) if data["capacity"] != 16)
+
 
     for problemNode, tile_chain in sorted(chains.items(), key=lambda (k,v): -len(v)):
-        tile_graph = g.subgraph(tile_chain)
-        assert nx.is_connected(tile_graph)
-        ret[problemNode] = sample_chain(cg, tile_graph)
+        tile_subgraph = tile_graph.subgraph(tile_chain)
+        assert nx.is_connected(tile_subgraph), (tile_chain,)
+        ret[problemNode] = sample_chain(chimera_graph, tile_subgraph)
 
 
 
     score, count = calc_score(ret)
+    stall  = 0
     while score > 0:
         k = random.choice([k for k,v in ret.iteritems() if any(count[x] > 1 for x in v)])
         oldv = ret[k]
         #for v in oldv:
         #    count[v] -=1
         #del ret[k]
-        problemsubg =g.subgraph(chains[k])
-        search_space = improve_chain(cg, problemsubg, count, oldv)
+        problemsubg =tile_graph.subgraph(chains[k])
+        search_space = improve_chain(chimera_graph, problemsubg, count, oldv)
         for _ in xrange(10):
             ret[k] = sample_chain((search_space), problemsubg)
             new_score, new_count = calc_score(ret)
             if new_score < score: break
-        if new_score <= score or random.random() < 0.001:
+        if new_score <= score or random.random() < 0.0001*stall/(new_score-score):
             score = new_score
             count = new_count
+            stall = 0
             print "Overlapping qubits when expanding:", score
         else:
             ret[k] = oldv
+            stall += 1
     #print ("final score:", score)
 
     return ret
