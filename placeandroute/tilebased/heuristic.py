@@ -4,6 +4,8 @@ from collections import defaultdict
 from itertools import combinations
 
 from math import log, exp
+
+import math
 from typing import List, Any, overload
 from placeandroute.routing.bonnheuristic import MinMaxRouter
 import networkx as nx
@@ -44,7 +46,7 @@ class RandomInitTactic(Tactic):
                 return False
             position = random.choice(possible_choices)
             p.insert_tile(constraint, position)
-        p.do_routing()
+        RerouteInsertTactic(p).do_routing()
         return True
 
 class BFSInitTactic(Tactic):
@@ -95,7 +97,7 @@ class IterPickTactic(Tactic):
         return ret
 
 class CostlyTilePickTactic(Tactic):
-    max_no_improvement = 1000
+    max_no_improvement = 400
     def __init__(self, p):
         Tactic.__init__(self, p)
         self.rip_tabu = []
@@ -331,13 +333,13 @@ class TilePlacementHeuristic(object):
                     return True
 
                 score = self.score()
-                print(score, [self.placement[c] for c in self.constraints])
+                print(int(score), [self.placement[c] for c in self.constraints])
                 if self.save_best(if_score=score):
                     no_improvement = 0
                 else:
                     no_improvement += 1
                     rare_reroute += 1
-                if rare_reroute > 20:
+                if rare_reroute >= 20:
                     rare_reroute = 0
                     effort += 5.0
                     RerouteInsertTactic(self).do_routing(int(effort))
@@ -362,7 +364,7 @@ class TilePlacementHeuristic(object):
         return all(data['usage'] <= data['capacity'] for _,data in self.arch.nodes(data=True))
 
     def scores(self):
-        return {n:exp(max(0, data['usage'] - data['capacity']))-1 for n, data in self.arch.nodes(data=True)}
+        return {n:(exp(max(0, data['usage'] - data['capacity']))-1)/(math.e -1) for n, data in self.arch.nodes(data=True)}
 
     def score(self):
         return sum(self.scores().itervalues())
