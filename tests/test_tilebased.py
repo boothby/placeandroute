@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-from chimerautils.chimera import create
-from chimerautils.display import interactive_embeddingview
+#from chimerautils.chimera import create
+#from chimerautils.display import interactive_embeddingview
 from os.path import dirname
 
 from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
@@ -19,13 +19,12 @@ def cnf_to_constraints(clauses, num_vars):
 
 
 def show_result(s, g, h):
-    os.environ["PATH"] += ":/home/svarotti/Drive/dwaveproj/projects/embeddingview"
-    cg, _ = create(s, s)
-    xdict = expand_solution(g, h.chains, cg)
+    #cg, _ = create(s, s)
+    #xdict = expand_solution(g, h.chains, cg)
     x = nx.Graph()
-    for k, v in xdict.iteritems():
-        x.add_node(k, mapto=v)
-    interactive_embeddingview(x, s, False)
+    #for k, v in xdict.iteritems():
+    #    x.add_node(k, mapto=v)
+    #interactive_embeddingview(x, s, False)
 
 def test_result(tile_graph, cnf, heur):
     chains = heur.chains
