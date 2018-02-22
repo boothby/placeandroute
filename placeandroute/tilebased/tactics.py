@@ -133,7 +133,7 @@ class RoughFindPlaceTactic(Tactic):
         epsilon = log(sum(d["capacity"] for _, d in parent.arch.nodes(data=True)))
 
         router = MinMaxRouter(parent.arch, placement, epsilon=epsilon)
-        wgraph = router.wgraph
+        wgraph = router.weights_graph
 
         scores = []
         for vset in constraint.tile:
