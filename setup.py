@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='placeandroute',
     version='',
-    packages=['placeandroute', 'placeandroute.old', 'placeandroute.routing', 'placeandroute.edgebased',
+    packages=['placeandroute','placeandroute.routing',
               'placeandroute.tilebased'],
     url='',
     license='',
