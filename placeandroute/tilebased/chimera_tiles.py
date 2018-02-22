@@ -1,8 +1,9 @@
-import random
+"""Work with chimera graphs/ tiles"""
 
+import random
 import networkx as nx
-from typing import List, Dict
-from itertools import product
+from typing import List, Dict, Set
+from collections import Counter
 
 
 def chimeratiles(w,h):
@@ -30,6 +31,8 @@ def chimeratiles(w,h):
 
 
 def sample_chain(cg, tile_graph):
+    # type: (nx.Graph, nx.Graph) -> Set[int]
+    """Sample a qubit chain from a tile chain"""
     chain_choice = None
     node_choices = lambda tile: range(tile * 4, tile * 4 + 4)
 
@@ -46,20 +49,24 @@ def sample_chain(cg, tile_graph):
     return chain_choice
 
 
-def improve_chain(cg, tile_graph, count, old):
+def alternative_chains(cg, tile_graph, count, old):
+    #type: (nx.Graph, nx.Graph, Dict, Set) -> nx.Graph
+    """Find alternative qubits in a chain with overused qubits"""
+
     node_choices = lambda tile: range(tile * 4, tile * 4 + 4)
 
+    #start from the old chain
     expanded = set(old)
-    #if len(old) == 1:
-    #    expanded.update(node_choices(next(iter(old))//4))
-    #    return cg.subgraph(expanded), tile_graph)
 
     for node in old:
-        if count[node] > 1:
+        if count[node] > 1: # if qubit is overused...
             tile = node//4
             new_nodes = set(node_choices(tile))
             expanded.update(new_nodes)
             testsubg = cg.subgraph(expanded)
+
+            # add qubits until they are properly connected
+            # (added qubits must have the same degree of the old qubit, otherwise we miss connecting qubits)
             while any(testsubg.degree(x) != testsubg.degree((x//4)*4) for x in new_nodes) :
                 newnew = set()
                 for n in iter(new_nodes):
@@ -75,8 +82,9 @@ def improve_chain(cg, tile_graph, count, old):
 
 
 
-from collections import Counter
 def calc_score(r):
+    # type: (Dict) -> (int, Counter)
+    """Count the number of overused qubits, return the counter object as well"""
     count = Counter()
     for v in r.values():
         count.update(v)
@@ -85,14 +93,16 @@ def calc_score(r):
 
 def expand_solution(tile_graph, chains, chimera_graph):
     # type: (nx.Graph, Dict[int, List[int]], nx.Graph) -> Dict[int, List[int]]
+    """Expand chains on tiles to chains on qubits. Uses annealing (better ideas are welcome)"""
     ret = dict()
 
+    # todo: move these in a unit test for chimera_tiles()
     assert all(chimera_graph.has_edge(n1 * 4, n2 * 4) for n1, n2 in tile_graph.edges())
     assert all(chimera_graph.has_edge(n1 * 4 + 1, n2 * 4 + 1) for n1, n2 in tile_graph.edges())
     assert all(chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges(data=True) if data["capacity"] == 16)
     assert all(not chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges(data=True) if data["capacity"] != 16)
 
-
+    # todo: sorted shoud be not needed anymore here
     for problemNode, tile_chain in sorted(chains.items(), key=lambda (k,v): -len(v)):
         tile_subgraph = tile_graph.subgraph(tile_chain)
         assert nx.is_connected(tile_subgraph), (tile_chain,)
@@ -103,25 +113,29 @@ def expand_solution(tile_graph, chains, chimera_graph):
     score, count = calc_score(ret)
     stall  = 0
     while score > 0:
+        # pick a random chain with overused qbits
         k = random.choice([k for k,v in ret.iteritems() if any(count[x] > 1 for x in v)])
         oldv = ret[k]
-        #for v in oldv:
-        #    count[v] -=1
-        #del ret[k]
-        problemsubg =tile_graph.subgraph(chains[k])
-        search_space = improve_chain(chimera_graph, problemsubg, count, oldv)
-        for _ in xrange(10):
+
+        problemsubg =tile_graph.subgraph(chains[k]) # chain in tile_space as nx.Graph
+        search_space = alternative_chains(chimera_graph, problemsubg, count, oldv)
+
+        # try hard to find a better chain inbetween the alternatives
+        # (todo: probably multiple samples are not needed)
+        for _ in xrange(100):
             ret[k] = sample_chain((search_space), problemsubg)
             new_score, new_count = calc_score(ret)
             if new_score < score: break
-        if new_score <= score or random.random() < 0.0001*stall/(new_score-score):
+
+        # todo: verify this condition
+        if new_score < score or random.random() < 0.0001*stall/(new_score-score):
             score = new_score
             count = new_count
             stall = 0
             print "Overlapping qubits when expanding:", score
         else:
             ret[k] = oldv
+            # slowly rise the temperature
             stall += 1
-    #print ("final score:", score)
 
     return ret

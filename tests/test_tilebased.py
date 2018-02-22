@@ -30,7 +30,7 @@ def show_result(s, g, h):
 def test_result(tile_graph, cnf, heur):
     chains = heur.chains
     for constraint in cnf:
-        assert heur.placement.has_key(constraint)
+        assert heur.constraint_placement.has_key(constraint)
         var_rows = constraint.tile
         for v1, v2 in product(*var_rows):
             if v1 == v2: continue
@@ -38,7 +38,8 @@ def test_result(tile_graph, cnf, heur):
             ch2 = chains[v2]
             assert nx.is_connected(tile_graph.subgraph(ch1))
             assert nx.is_connected(tile_graph.subgraph(ch2))
-            assert any(tile_graph.has_edge(n1,n2) for n1, n2 in product(ch1,ch2)), (v1, v2, constraint, heur.placement[constraint], ch1, ch2)
+            assert any(tile_graph.has_edge(n1,n2) for n1, n2 in product(ch1,ch2)), \
+                (v1, v2, constraint, heur.constraint_placement[constraint], ch1, ch2)
 
 
 
@@ -66,7 +67,7 @@ class TestTileBased(TestCase):
         g, chs = chimeratiles(s,s)
         h = TilePlacementHeuristic(cs, g, chs)
         print h.run()
-        for c, t in h.placement.iteritems():
+        for c, t in h.constraint_placement.iteritems():
             print c.tile, t
         print repr(h.chains)
         show_result(s, g, h)
@@ -80,7 +81,7 @@ class TestTileBased(TestCase):
         g, chs = chimeratiles(s,s)
         h = TilePlacementHeuristic(cs, g, chs)
         print h.run()
-        for c, t in h.placement.iteritems():
+        for c, t in h.constraint_placement.iteritems():
             print c.tile, t
         print repr(h.chains)
         test_result(g, cs, h)
