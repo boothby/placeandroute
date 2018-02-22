@@ -69,6 +69,7 @@ class TestTileBased(TestCase):
         for c, t in h.constraint_placement.iteritems():
             print c.tile, t
         print repr(h.chains)
+        test_result(g, cs, h)
         show_result(s, g, h)
 
     def test4(self):
