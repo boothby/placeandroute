@@ -15,8 +15,8 @@ class Constraint(object):
         # type: (List[List[Any]]) -> None
         """Initializes the variable mapping.
         Currently the variable mapping is represented as a list of list of variables. Each inner list represents a set
-        of variables that can be placed in any order. Considering the chimera, the mapping consists in two lists
-        containing the variables that go in a 4 qubit row. Todo: add multiple alternative mappings"""
+        of variables that can be placed in any order. Considering Chimera, the mapping consists in two lists, each
+        list containing the variables that go in a 4 qubit row. Todo: add multiple alternative mappings"""
         self.tile = vars
 
 
