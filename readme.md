@@ -93,3 +93,7 @@ possible confusion
 
 - I moved all tactics used in the heuristic placement class in a separate
 module, hopefully making them easier to compose.
+
+- Using incremental Bonnroute while rerouting everything every few turns was an
+afterthought, as I used to reroute everything every time. Seems that trying to
+reroute everithing after changing slightly the placement is an effective move.
