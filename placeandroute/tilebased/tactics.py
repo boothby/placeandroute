@@ -27,6 +27,7 @@ class Tactic(object):
 
 
 class RepeatTactic(Tactic):
+    """Repeats a tactic until there is no improvement for max turns"""
     def __init__(self, p, subTactic, max_no_improvement):
         Tactic.__init__(self, p)
         self._sub_tactic = subTactic
@@ -128,6 +129,7 @@ class BFSInitTactic(Tactic):
         return True
 
 class RipTactic(Tactic):
+    """Rips a constraints from the placements and trims the chains"""
     def remove_tile(self, constr, clean_chains=True):
         # remove a constraint from the current embedding.
         place_obj = self._placement
@@ -240,7 +242,7 @@ class ChainsFindTactic(Tactic):
     def find_best_place(self, constraint):
         parent = self._placement
         placement = parent.chains
-        scaling_factor = log(2000)
+        scaling_factor = log(2000) #todo
         wgraph = nx.DiGraph(parent.arch)
 
         def set_weights(nodeset):
@@ -291,7 +293,7 @@ class ChainsFindTactic(Tactic):
 
 
 class RerouteTactic(Tactic):
-    """Throw away the current chain and reroute everything. Uses bonnroute."""
+    """Throws away the current chain and reroute everything. Uses bonnroute."""
     def do_routing(self, effort=100):
         print "Rerouting..."
         p = self._placement
@@ -329,6 +331,7 @@ class IncrementalRerouteTactic(Tactic):
 
 
 class InsertTactic(Tactic):
+    """Insert a constraint somewhere and reroute"""
     @classmethod
     def quick(cls):
         return lambda p: cls(p, IncrementalRerouteTactic)
@@ -349,6 +352,7 @@ class InsertTactic(Tactic):
 
 
 class RipRerouteTactic(Tactic):
+    """Main rip&reroute class"""
     @classmethod
     def default(cls):
         return lambda p: RepeatTactic(p, cls, max_no_improvement=20)
