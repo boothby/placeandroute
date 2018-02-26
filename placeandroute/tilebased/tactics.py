@@ -10,15 +10,48 @@ from placeandroute.routing.bonnheuristic import MinMaxRouter
 
 class Tactic(object):
     """Generic tactic object. Will hold the TileHeuristic object in the parent attribute"""
-    def __init__(self, parent):
+    def __init__(self, placement, **_):
         # type: (TilePlacementHeuristic) -> None
-        self.parent = parent
+        self._placement = placement
 
-    def init_placement(self):
+    @classmethod
+    def run_on(cls, placement):
+        cls(placement).run()
+
+    @classmethod
+    def with_params(cls, **params):
+        return lambda p : cls(p, **params)
+
+    def run(self):
+        pass
+
+
+class RepeatTactic(Tactic):
+    def __init__(self, p, subTactic, max_no_improvement):
+        Tactic.__init__(self, p)
+        self._sub_tactic = subTactic
+        self._max_no_improvement = max_no_improvement
+        self.best_found = (None,)
+
+    def run(self):
+        no_improvement = 0
+        tactic = self._sub_tactic(self._placement)
+        while no_improvement < self._max_no_improvement:
+            tactic.run()
+            if self._placement.is_valid_embedding():
+                return
+            if not self.save_best():
+                no_improvement +=1
+
+    def save_best(self):
         # type: () -> bool
-        #todo: abstract InitTactic, maybe
-        raise NotImplementedError
-
+        """Check if the current result has been the best so far"""
+        if_score = self._placement.score()
+        if self.best_found[0] is None or if_score < self.best_found[0]:
+            self.best_found = (if_score, self._placement.constraint_placement, self._placement.chains)
+            return True
+        else:
+            return False
 
 
 class RandomInitTactic(Tactic):
@@ -26,32 +59,32 @@ class RandomInitTactic(Tactic):
 
     def constraint_fit(self, choice, constraint):
         for (node, req) in zip(choice, constraint.tile):
-            data =self.parent.arch.nodes[node]
+            data =self._placement.arch.nodes[node]
 
             if (data['capacity']-data["usage"]) < len(req):
                 return False
 
         return True
-    def init_placement(self):
-        p = self.parent
+
+    def run(self):
+        p = self._placement
         choices = p.choices
+        #insert_tactic = InsertTactic(p, IncrementalRerouteTactic)
         for constraint in p.constraints:
             possible_choices = [x for x in choices if self.constraint_fit(x, constraint)]
             if not possible_choices:
-                return False
+                possible_choices = choices
             position = random.choice(possible_choices)
-            p.insert_tile(constraint, position)
-        RerouteInsertTactic(p).do_routing()
-        return True
+            p.constraint_placement[constraint] =  position
+        RerouteTactic(p).do_routing()
 
 
 class BFSInitTactic(Tactic):
     """Initialize placement by breadth-first-search. Identifies a "central" constraint, traverses the constraint graph
     using BFS, placing and routing each constraint. After inserting a new constraint, rip&reroute one constraint to
     correct overusage early"""
-    def init_placement(self):
-        p = self.parent
-
+    def run(self):
+        p = self._placement
         #build the constraint graph
         cg = nx.Graph()
         vartoconst = defaultdict(list)
@@ -65,7 +98,12 @@ class BFSInitTactic(Tactic):
             for v1,v2 in combinations(cset,2):
                 cg.add_edge(v1,v2)
 
-        pick_t = CostlyTilePickTactic(p) # pick tactic
+        pick_t = CostPickTactic(p) # pick tactic
+        insert_tactic = InsertTactic(p, IncrementalRerouteTactic)
+        remove_tactic = RipTactic(p)
+        best_place = ChainsFindTactic(p)
+
+
 
         # "central" constraint in problem graph
         centrality = nx.betweenness_centrality(cg)
@@ -74,37 +112,83 @@ class BFSInitTactic(Tactic):
         # "central" tile in arch graph
         arch_centrality = nx.betweenness_centrality(p.arch)
         starttile = max(p.choices, key=lambda (x,y): arch_centrality[x] + arch_centrality[y])
-        p.insert_tile(start, starttile)
-        #best_place = RoughFindPlaceTactic(p)
-        best_place = ChainsFindPlaceTactic(p)
+        insert_tactic.insert_tile(start, starttile)
 
 
         for _, constraint in nx.bfs_edges(cg, start):
             # insert new constraint in best place
             best = best_place.find_best_place(constraint)
-            p.insert_tile(constraint, best)
+            insert_tactic.insert_tile(constraint, best)
             # rip and reroute the worst constraint
             worst = pick_t.pick_worst()
-            p.remove_tile(worst)
+            remove_tactic.remove_tile(worst)
             best2 = best_place.find_best_place(worst)
-            p.insert_tile(worst, best2)
+            insert_tactic.insert_tile(worst, best2)
 
         return True
 
-class RipRerouteTactic(Tactic):
-    # WORK IN PROGRESS: unused yet
-    def __init__(self, p, removeTactic, findTactic, insertTactic):
-        Tactic.__init__(self, p)
-        self._remove = removeTactic(p)
-        self._find = findTactic(p)
-        self._insert = insertTactic(p)
+class RipTactic(Tactic):
+    def remove_tile(self, constr, clean_chains=True):
+        # remove a constraint from the current embedding.
+        place_obj = self._placement
+        old =  self._placement.constraint_placement[constr]
+        del self._placement.constraint_placement[constr]
+        if clean_chains:
+            var_placement = place_obj.var_placement()
+            for var_row, node in zip(constr.tile, old):
+                for var in var_row:
+                    if var not in place_obj.chains or node not in place_obj.chains[var]:
+                        continue # should be hit only when var has been deleted from the previous row
 
-    def improve(self):
-        remove_choice = self.pick_worst()
-        self.remove_tile(remove_choice)
-        # print self.score()
-        best_place = self.find_best_place(remove_choice)
-        self.insert_tile(remove_choice, best_place)
+                    if var not in var_placement:
+                        # the deleted tile was the only one containing this variables, clear the whole chain
+                        for deleted_node in place_obj.chains[var]:
+                            place_obj.arch.nodes[deleted_node]['usage'] -= 1
+                        del place_obj.chains[var]
+                        continue
+
+                    chaintree = nx.Graph(place_obj.arch.subgraph(place_obj.chains[var]))
+                    leaf = node
+                    # remove only unused qubits from the chain (leaf in the tree that do not belong to other constraints
+                    while chaintree.degree(leaf) == 1 and leaf not in var_placement[var]:
+                        newleaf = next(chaintree.neighbors(leaf))
+                        chaintree.remove_node(leaf)
+                        place_obj.chains[var] = place_obj.chains[var].difference({leaf})
+                        place_obj.arch.nodes[leaf]['usage'] -= 1
+                        leaf = newleaf
+
+#
+# class CombinedTactic(Tactic):
+#     def do_try(self):
+#         # try to improve result ripping and rerouting or rerouting everything. Probably will be refactored into .run()
+#         effort = 10.0
+#         rare_reroute = 0
+#         for TClass in self._pick_tactics:
+#             tactic = TClass(self)
+#             no_improvement = 0
+#             while no_improvement <= tactic.max_no_improvement:
+#                 if self.is_valid_embedding():
+#                     return True
+#
+#                 score = self.score()
+#                 print(int(score), [self.constraint_placement[c] for c in self.constraints])
+#                 if self.save_best(if_score=score):
+#                     no_improvement = 0
+#                 else:
+#                     no_improvement += 1
+#                     rare_reroute += 1
+#                 if rare_reroute >= 20:
+#                     rare_reroute = 0
+#                     effort += 5.0
+#                     RerouteTactic(self).do_routing(int(effort))
+#                 else:
+#                     remove_choice = tactic.pick_worst()
+#                     self.remove_tile(remove_choice)
+#                     #print self.score()
+#                     best_place = self.find_best_place(remove_choice)
+#                     self.insert_tile(remove_choice, best_place)
+#
+#         return self.is_valid_embedding()
 
 
 
@@ -116,24 +200,24 @@ class IterPickTactic(Tactic):
         self.max_no_improvement = len(p.constraints) #* 10
 
     def pick_worst(self):
-        p = self.parent
+        p = self._placement
         ret = p.constraints[self.counter % len(p.constraints)]
         self.counter += 1
         return ret
 
 
-class CostlyTilePickTactic(Tactic):
+class CostPickTactic(Tactic):
     """Reroute choice based on cost (~ e**overusage). Uses a tabu list to avoid rerouting the same few constraints
 
      todo: calculate cost in only one place
     """
-    max_no_improvement = 400
     def __init__(self, p):
         Tactic.__init__(self, p)
+        self.max_no_improvement = 400
         self.rip_tabu = []
 
     def pick_worst(self):
-        p = self.parent
+        p = self._placement
         costs = {node: exp(max(0, data['usage'] - data['capacity']))-1 for node, data in p.arch.nodes(data=True)}
         worstc = None
         worstcost = 0
@@ -144,17 +228,17 @@ class CostlyTilePickTactic(Tactic):
                 worstc = constr
                 worstcost = cost
         if worstc is None:
-            worstc = random.choice(p.placement.keys())
+            worstc = random.choice(p.constraint_placement.keys())
         self.rip_tabu.append(worstc)
         if len(self.rip_tabu) > 10:
             self.rip_tabu.pop(0)
         return worstc
 
 
-class ChainsFindPlaceTactic(Tactic):
+class ChainsFindTactic(Tactic):
     """Choose the best tile for a constraint based on shortest path from already-present chains"""
     def find_best_place(self, constraint):
-        parent = self.parent
+        parent = self._placement
         placement = parent.chains
         scaling_factor = log(2000)
         wgraph = nx.DiGraph(parent.arch)
@@ -204,23 +288,13 @@ class ChainsFindPlaceTactic(Tactic):
         return best_choice
 
 
-class InsertTactic(Tactic):
-    # generic re-routing tactic: todo: will be factored away
-    def insert_tile(self, constraint, tile):
-        # type: (Constraint, List[List[Any]]) -> None
-        p = self.parent
-        p.constraint_placement[constraint] = tile
-        self.do_routing()
-
-    def do_routing(self):
-        pass
 
 
-class RerouteInsertTactic(InsertTactic):
+class RerouteTactic(Tactic):
     """Throw away the current chain and reroute everything. Uses bonnroute."""
     def do_routing(self, effort=100):
         print "Rerouting..."
-        p = self.parent
+        p = self._placement
         placement = p.var_placement()
         router = MinMaxRouter(p.arch, placement, epsilon=1.0/effort)
         router.run(effort)
@@ -231,12 +305,15 @@ class RerouteInsertTactic(InsertTactic):
             for node in nodes:
                 p.arch.nodes[node]["usage"] += 1
 
+    def run(self):
+        self.do_routing()
 
-class IncrementalRerouteInsertTactic(InsertTactic):
+
+class IncrementalRerouteTactic(Tactic):
     """Perform routing keeping the currently available chains. Uses bonnroute, but essentially
     forces the use of old chains"""
-    def do_routing(self, effort=100):
-        p = self.parent
+    def do_routing(self,  effort=100):
+        p = self._placement
         placement = p.var_placement()
         for k, vs in p.chains.iteritems():
             placement[k] = set(placement[k]).union(vs)
@@ -248,3 +325,56 @@ class IncrementalRerouteInsertTactic(InsertTactic):
         for nodes in p.chains.itervalues():
             for node in nodes:
                 p.arch.nodes[node]["usage"] += 1
+
+
+
+class InsertTactic(Tactic):
+    @classmethod
+    def quick(cls):
+        return lambda p: cls(p, IncrementalRerouteTactic)
+
+    @classmethod
+    def slow(cls):
+        return lambda p : cls(p, RerouteTactic)
+
+    def __init__(self, p, routingTactic):
+        Tactic.__init__(self, p)
+        self._routing_tactic = routingTactic(p)
+
+    def insert_tile(self, constraint, tile):
+        # type: (Constraint, List[List[Any]]) -> None
+        p = self._placement
+        p.constraint_placement[constraint] = tile
+        self._routing_tactic.do_routing()
+
+
+class RipRerouteTactic(Tactic):
+    @classmethod
+    def default(cls):
+        return lambda p: RepeatTactic(p, cls, max_no_improvement=20)
+
+    def __init__(self, p, removeTactic=RipTactic, findTactic=ChainsFindTactic, insertTactic=InsertTactic.quick(), pickTactic=CostPickTactic):
+        Tactic.__init__(self, p)
+        self._remove = removeTactic(p)
+        self._find = findTactic(p)
+        self._insert = insertTactic(p)
+        self._pick = pickTactic(p)
+
+    def run(self):
+        remove_choice = self.pick_worst()
+        self.remove_tile(remove_choice)
+        # print self.score()
+        best_place = self.find_best_place(remove_choice)
+        self.insert_tile(remove_choice, best_place)
+
+    def pick_worst(self):
+        return self._pick.pick_worst()
+
+    def remove_tile(self, choice):
+        self._remove.remove_tile(choice)
+
+    def find_best_place(self, choice):
+        return self._find.find_best_place(choice)
+
+    def insert_tile(self, constr, place):
+        self._insert.insert_tile(constr, place)

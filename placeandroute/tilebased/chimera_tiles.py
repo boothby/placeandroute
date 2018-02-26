@@ -73,7 +73,8 @@ def alternative_chains(cg, tile_graph, count, old):
                     for x in tile_graph.neighbors(n // 4):
                         newnew.update(node_choices(x))
                 assert len(newnew.difference(new_nodes)) > 0
-                new_nodes.update(newnew)
+                #new_nodes.update(newnew)
+                new_nodes = newnew
                 expanded.update(newnew)
                 testsubg = cg.subgraph(expanded)
                 #print expanded
@@ -122,13 +123,13 @@ def expand_solution(tile_graph, chains, chimera_graph):
 
         # try hard to find a better chain inbetween the alternatives
         # (todo: probably multiple samples are not needed)
-        for _ in xrange(100):
+        for _ in xrange(1):
             ret[k] = sample_chain((search_space), problemsubg)
             new_score, new_count = calc_score(ret)
             if new_score < score: break
 
         # todo: verify this condition
-        if new_score < score or random.random() < 0.0001*stall/(new_score-score):
+        if new_score < score or random.random() < 0.0001*stall/(new_score-score+1):
             score = new_score
             count = new_count
             stall = 0
