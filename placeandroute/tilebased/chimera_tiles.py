@@ -33,19 +33,23 @@ def chimeratiles(w,h):
 def sample_chain(cg, tile_graph):
     # type: (nx.Graph, nx.Graph) -> Set[int]
     """Sample a qubit chain from a tile chain"""
-    chain_choice = None
+    chain_choice = set()
     node_choices = lambda tile: range(tile * 4, tile * 4 + 4)
+    neighborhood = set()
 
     for node in nx.dfs_preorder_nodes(tile_graph):
         if not chain_choice:
-            chain_choice = {random.choice([x for x in node_choices(node) if x in cg.nodes])}
+            node_choice = random.choice([x for x in node_choices(node) if x in cg.nodes])
         else:
             new_choices = []
             for new_node in node_choices(node):
-                if any(cg.has_edge(old_node, new_node) for old_node in chain_choice):
-                    new_choices.append(chain_choice.union({new_node}))
+                if new_node in neighborhood:
+                    new_choices.append(new_node)
             assert len(new_choices) > 0, (node, node_choices(node), chain_choice, tile_graph.edges(), cg.edges())
-            chain_choice = random.choice(new_choices)
+            node_choice = random.choice(new_choices)
+        chain_choice.add(node_choice)
+        neighborhood.update(cg.neighbors(node_choice))
+
     return chain_choice
 
 
@@ -122,14 +126,14 @@ def expand_solution(tile_graph, chains, chimera_graph):
         search_space = alternative_chains(chimera_graph, problemsubg, count, oldv)
 
         # try hard to find a better chain inbetween the alternatives
-        # (todo: probably multiple samples are not needed)
-        for _ in xrange(1):
+        # alternative_chains is expensive, exploit it
+        for _ in xrange(10):
             ret[k] = sample_chain((search_space), problemsubg)
             new_score, new_count = calc_score(ret)
             if new_score < score: break
 
         # todo: verify this condition
-        if new_score < score or random.random() < 0.0001*stall/(new_score-score+1):
+        if new_score < score or random.random() < 0.000001*stall:
             score = new_score
             count = new_count
             stall = 0
