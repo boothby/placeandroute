@@ -1,15 +1,25 @@
 from unittest import TestCase
 
-from chimerautils.chimera import create
-from chimerautils.display import interactive_embeddingview
+#from chimerautils.chimera import create
+#from chimerautils.display import interactive_embeddingview
 from os.path import dirname
 
 from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
 from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution
 from placeandroute.problemgraph import parse_cnf
+import matplotlib
+matplotlib.verbose = True # workaround for pycharm
+from matplotlib.cm import get_cmap
+import matplotlib.pyplot as plt
 import networkx as nx
 import os
-from itertools import product
+import dwave_networkx as dwnx
+from itertools import product, cycle
+
+
+def create(w, l):
+    ret =  dwnx.chimera_graph(w,l)
+    return ret, dwnx.chimera_layout(ret)
 
 def cnf_to_constraints(clauses, num_vars):
     ancilla = num_vars + 1
@@ -19,12 +29,20 @@ def cnf_to_constraints(clauses, num_vars):
 
 
 def show_result(s, g, h):
-    cg, _ = create(s, s)
+    cg, layout = create(s, s)
     xdict = expand_solution(g, h.chains, cg)
     x = nx.Graph()
     for k, v in xdict.iteritems():
         x.add_node(k, mapto=v)
-    interactive_embeddingview(x, s, False)
+    #interactive_embeddingview(x, s, False)
+    color = cycle(get_cmap("tab20").colors)
+    nx.draw(cg, layout, node_color="gray", edge_color="gray")
+    for k,vs in xdict.iteritems():
+        col = next(color)
+        subcg = cg.subgraph(vs)
+        nx.draw(subcg, layout, node_color=col, edge_color=[col]*subcg.number_of_edges())
+    plt.show()
+
 
 def test_result(tile_graph, cnf, heur):
     chains = heur.chains

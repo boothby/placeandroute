@@ -21,9 +21,9 @@ def chimeratiles(w,h):
             ret.add_nodes_from([n1,n2], capacity=4, usage=0)
             ret.add_edge(n1,n2, capacity=16)
             if row:
-                ret.add_edge(n1, row[-1][0], capacity=4)
+                ret.add_edge(n2, row[-1][1], capacity=4)
             if grid:
-                ret.add_edge(n2,grid[-1][len(row)][1],capacity=4)
+                ret.add_edge(n1,grid[-1][len(row)][0],capacity=4)
             row.append((n1,n2))
             choices.extend([(n1,n2), (n2,n1)])
         grid.append(row)
