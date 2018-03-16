@@ -112,17 +112,33 @@ def expand_solution(tile_graph, chains, chimera_graph):
         tile_subgraph = tile_graph.subgraph(tile_chain)
         assert nx.is_connected(tile_subgraph), (tile_chain,)
         ret[problemNode] = sample_chain(chimera_graph, tile_subgraph)
+        best = None
+        bestScore = None
+        for _ in xrange(1000):
+            score,count = calc_score(ret)
+
+            if best is None or score < bestScore:
+                best = ret[problemNode]
+                bestScore = score
+            if score == 0:
+                break
+            search_space = alternative_chains(chimera_graph, tile_subgraph, count, ret[problemNode])
+            ret[problemNode] = sample_chain(search_space, tile_subgraph)
+        ret[problemNode] = best
+    flatten_assignment(chains, chimera_graph, ret, tile_graph)
+
+    return ret
 
 
-
+def flatten_assignment(chains, chimera_graph, ret, tile_graph):
     score, count = calc_score(ret)
-    stall  = 0
+    stall = 0
     while score > 0:
         # pick a random chain with overused qbits
-        k = random.choice([k for k,v in ret.iteritems() if any(count[x] > 1 for x in v)])
+        k = random.choice([k for k, v in ret.iteritems() if any(count[x] > 1 for x in v)])
         oldv = ret[k]
 
-        problemsubg =tile_graph.subgraph(chains[k]) # chain in tile_space as nx.Graph
+        problemsubg = tile_graph.subgraph(chains[k])  # chain in tile_space as nx.Graph
         search_space = alternative_chains(chimera_graph, problemsubg, count, oldv)
 
         # try hard to find a better chain inbetween the alternatives
@@ -133,14 +149,12 @@ def expand_solution(tile_graph, chains, chimera_graph):
             if new_score < score: break
 
         # todo: verify this condition
-        if new_score < score or random.random() < 0.000001*stall:
+        if new_score < score or random.random() < 0.00001 * stall/ (new_score - score + 1):
             score = new_score
             count = new_count
+            print "Overlapping qubits when expanding:", score, "stalled", stall
             stall = 0
-            print "Overlapping qubits when expanding:", score
         else:
             ret[k] = oldv
             # slowly rise the temperature
             stall += 1
-
-    return ret

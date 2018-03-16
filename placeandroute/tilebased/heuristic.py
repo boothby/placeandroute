@@ -28,38 +28,61 @@ class TilePlacementHeuristic(object):
         self.constraint_placement = dict()
         self.chains = {}
         self.choices = choices
+        self.coeff = math.log(sum(d["capacity"] for _, d in archGraph.nodes(data=True)))  # high to discourage overlap
+        print("coeff", exp(self.coeff))
 
         # tactic choices
-        self._init_tactics = [BFSInitTactic, RandomInitTactic] * 3 + [RandomInitTactic] * 4
+        self._init_tactics = [BFSInitTactic, RandomInitTactic] * 2 + [RandomInitTactic] * 1
         self._improve_tactics = [RipRerouteTactic.default(), RerouteTactic] * 50
 
 
     def run(self):
         """Run the place and route heuristic. Iterate between tactics until a solution is found"""
+        self.reset_best()
         for init_tactic in self._init_tactics:
             init_tactic.run_on(self)
-            print("Initialized, score is: {}".format(self.score()))
+            print("Initialized, score is: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
             if self.is_valid_embedding():
-                return True
+                self.save_best()
             for improve_tactic in self._improve_tactics:
                 improve_tactic(self).run()
-                print("Score improved to: {}".format(self.score()))
+                print("Score improved to: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
                 if self.is_valid_embedding():
-                    return True
+                    self.save_best()
+        self.restore_best()
+        return True
 
-        return False
+    def reset_best(self):
+        self._best_score = None
+        self._best_plc = (None, None)
+
+    def save_best(self):
+        score = self.score()
+        if self._best_score is None or score < self._best_score:
+            self._best_score = score
+            self._best_plc = (self.constraint_placement, self.chains)
+
+    def restore_best(self):
+        (self.constraint_placement, self.chains) = self._best_plc
 
 
     def is_valid_embedding(self):
         # type: () -> bool
         """Check if the current embedding is valid"""
-        return all(data['usage'] <= data['capacity'] for _,data in self.arch.nodes(data=True))
+        return self.get_overlapping() == 0
+
+    def get_overlapping(self):
+        return sum(max(0, data['usage'] - data['capacity']) for _,data in self.arch.nodes(data=True))
 
 
     def scores(self):
         # type: () -> Dict[Any, float]
         """Return usage scores for the current qubits. Currently (e**overusage -1)/(e -1)"""
-        return {n:(exp(max(0, data['usage'] - data['capacity']))-1)/(math.e -1) for n, data in self.arch.nodes(data=True)}
+        return {n:
+                #    (exp(max(0, data['usage'] - data['capacity']))-1)/(math.e -1)
+                    data["usage"] + exp(
+                        self.coeff * max(0, data['usage'] - data['capacity'])) - 1
+                for n, data in self.arch.nodes(data=True)}
 
 
     def score(self):
@@ -77,3 +100,11 @@ class TilePlacementHeuristic(object):
                         placement[pnode] = []
                     placement[pnode].append(anode)
         return placement
+
+
+    def fix_usage(p):
+        for node, data in p.arch.nodes(data=True):
+            data["usage"] = 0
+        for nodes in p.chains.itervalues():
+            for node in nodes:
+                p.arch.nodes[node]["usage"] += 1

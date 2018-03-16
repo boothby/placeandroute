@@ -8,6 +8,7 @@ from collections import defaultdict
 from placeandroute.routing.bonnheuristic import MinMaxRouter
 #from .heuristic import TilePlacementHeuristic, Constraint
 
+
 class Tactic(object):
     """Generic tactic object. Will hold the TileHeuristic object in the parent attribute"""
     def __init__(self, placement, **_):
@@ -32,17 +33,22 @@ class RepeatTactic(Tactic):
         Tactic.__init__(self, p)
         self._sub_tactic = subTactic
         self._max_no_improvement = max_no_improvement
-        self.best_found = (None,)
+        self.best_found = (None, None, None)
 
     def run(self):
         no_improvement = 0
         tactic = self._sub_tactic(self._placement)
+        self.save_best()
         while no_improvement < self._max_no_improvement:
             tactic.run()
-            if self._placement.is_valid_embedding():
-                return
+            #if self._placement.is_valid_embedding():
+            #    return
             if not self.save_best():
                 no_improvement +=1
+            else:
+                no_improvement = 0
+        (if_score, self._placement.constraint_placement, self._placement.chains) = self.best_found
+        self._placement.fix_usage()
 
     def save_best(self):
         # type: () -> bool
@@ -220,7 +226,7 @@ class CostPickTactic(Tactic):
 
     def pick_worst(self):
         p = self._placement
-        costs = {node: exp(max(0, data['usage'] - data['capacity']))-1 for node, data in p.arch.nodes(data=True)}
+        costs = p.scores()
         worstc = None
         worstcost = 0
         for constr in p.constraint_placement.iterkeys():
@@ -301,11 +307,7 @@ class RerouteTactic(Tactic):
         router = MinMaxRouter(p.arch, placement, epsilon=1.0/effort)
         router.run(effort)
         p.chains = router.result
-        for node,data in p.arch.nodes(data=True):
-            data["usage"] = 0
-        for nodes in p.chains.itervalues():
-            for node in nodes:
-                p.arch.nodes[node]["usage"] += 1
+        p.fix_usage()
 
     def run(self):
         self.do_routing()
