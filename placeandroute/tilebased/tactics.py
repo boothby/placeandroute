@@ -55,7 +55,7 @@ class RepeatTactic(Tactic):
         """Check if the current result has been the best so far"""
         if_score = self._placement.score()
         if self.best_found[0] is None or if_score < self.best_found[0]:
-            self.best_found = (if_score, self._placement.constraint_placement, self._placement.chains)
+            self.best_found = (if_score, self._placement.constraint_placement.copy(), self._placement.chains.copy())
             return True
         else:
             return False
@@ -324,11 +324,7 @@ class IncrementalRerouteTactic(Tactic):
         router = MinMaxRouter(p.arch, placement, epsilon=1.0/effort)
         router.run(effort)
         p.chains = router.result
-        for node,data in p.arch.nodes(data=True):
-            data["usage"] = 0
-        for nodes in p.chains.itervalues():
-            for node in nodes:
-                p.arch.nodes[node]["usage"] += 1
+        p.fix_usage()
 
 
 

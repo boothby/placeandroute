@@ -60,7 +60,7 @@ class TilePlacementHeuristic(object):
         score = self.score()
         if self._best_score is None or score < self._best_score:
             self._best_score = score
-            self._best_plc = (self.constraint_placement, self.chains)
+            self._best_plc = (self.constraint_placement.copy(), self.chains.copy())
 
     def restore_best(self):
         (self.constraint_placement, self.chains) = self._best_plc
