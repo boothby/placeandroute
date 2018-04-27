@@ -219,9 +219,10 @@ class CostPickTactic(Tactic):
 
      todo: calculate cost in only one place
     """
-    def __init__(self, p):
+    def __init__(self, p, tabu_size=10, max_no_improvement=400):
         Tactic.__init__(self, p)
-        self.max_no_improvement = 400
+        self.max_no_improvement = max_no_improvement
+        self.tabu_size = tabu_size
         self.rip_tabu = []
 
     def pick_worst(self):
@@ -238,17 +239,21 @@ class CostPickTactic(Tactic):
         if worstc is None:
             worstc = random.choice(p.constraint_placement.keys())
         self.rip_tabu.append(worstc)
-        if len(self.rip_tabu) > 10:
+        if len(self.rip_tabu) > self.tabu_size:
             self.rip_tabu.pop(0)
         return worstc
 
 
 class ChainsFindTactic(Tactic):
     """Choose the best tile for a constraint based on shortest path from already-present chains"""
+    def __init__(self, p, scaling_factor=log(2000)):
+        Tactic.__init__(self, p)
+        self.scaling_factor = scaling_factor
+
     def find_best_place(self, constraint):
         parent = self._placement
         placement = parent.chains
-        scaling_factor = log(2000) #todo
+        scaling_factor = self.scaling_factor
         wgraph = nx.DiGraph(parent.arch)
 
         def set_weights(nodeset):
@@ -300,9 +305,13 @@ class ChainsFindTactic(Tactic):
 
 class RerouteTactic(Tactic):
     """Throws away the current chain and reroute everything. Uses bonnroute."""
-    def do_routing(self, effort=100):
+    def __init__(self, p, effort=100):
+        Tactic.__init__(self, p)
+        self.effort = effort
+    def do_routing(self):
         print "Rerouting..."
         p = self._placement
+        effort = self.effort
         placement = p.var_placement()
         router = MinMaxRouter(p.arch, placement, epsilon=1.0/effort)
         router.run(effort)
@@ -313,11 +322,12 @@ class RerouteTactic(Tactic):
         self.do_routing()
 
 
-class IncrementalRerouteTactic(Tactic):
+class IncrementalRerouteTactic(RerouteTactic):
     """Perform routing keeping the currently available chains. Uses bonnroute, but essentially
     forces the use of old chains"""
-    def do_routing(self,  effort=100):
+    def do_routing(self):
         p = self._placement
+        effort = self.effort
         placement = p.var_placement()
         for k, vs in p.chains.iteritems():
             placement[k] = set(placement[k]).union(vs)

@@ -36,23 +36,33 @@ class TilePlacementHeuristic(object):
         self._improve_tactics = [RipRerouteTactic.default(), RerouteTactic] * 50
 
 
-    def run(self):
+    def run(self, stop_first=False):
         """Run the place and route heuristic. Iterate between tactics until a solution is found"""
-        self.reset_best()
+        self.clear_best()
+        found = False
         for init_tactic in self._init_tactics:
             init_tactic.run_on(self)
             print("Initialized, score is: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
             if self.is_valid_embedding():
                 self.save_best()
+                if stop_first:
+                    self.restore_best()
+                    return True
+                found = True
             for improve_tactic in self._improve_tactics:
                 improve_tactic(self).run()
                 print("Score improved to: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
                 if self.is_valid_embedding():
                     self.save_best()
-        self.restore_best()
-        return True
+                    if stop_first:
+                        self.restore_best()
+                        return True
+                    found = True
 
-    def reset_best(self):
+        self.restore_best()
+        return found
+
+    def clear_best(self):
         self._best_score = None
         self._best_plc = (None, None)
 
