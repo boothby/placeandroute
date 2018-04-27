@@ -1,7 +1,5 @@
 from unittest import TestCase
 
-#from chimerautils.chimera import create
-#from chimerautils.display import interactive_embeddingview
 from os.path import dirname
 
 from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
@@ -12,7 +10,6 @@ matplotlib.verbose = True # workaround for pycharm
 from matplotlib.cm import get_cmap
 import matplotlib.pyplot as plt
 import networkx as nx
-import os
 import dwave_networkx as dwnx
 from itertools import product, cycle
 
