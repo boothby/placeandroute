@@ -6,6 +6,8 @@ from math import exp, log
 from collections import defaultdict, Counter
 from typing import Set
 
+def bounded_exp(val, maxval=700.0):
+    return exp(min(maxval, val))
 
 def fast_steiner_tree(graph, voi_clusters, heuristic=None):
     # type: (nx.Graph, Iterable[Set[Any]]) -> FrozenSet[Any]
@@ -86,10 +88,7 @@ class MinMaxRouter(object):
             usage = data["usage"] / data["capacity"]
             for edge in self.weights_graph.in_edges(node):
                 data = self.weights_graph.edges[edge]
-                try:
-                    data["weight"] *= exp(self.epsilon * usage)
-                except OverflowError:
-                    raise  # usage is too high
+                data["weight"] *= bounded_exp(max(0, self.epsilon * usage))
                 # self._astar_heuristic[node][edge[1]] = data["weight"]
 
     def run(self, effort=100):
@@ -143,7 +142,7 @@ class MinMaxRouter(object):
         # score(qbit) = coeff ** (overusage)
         def calcscore(r):
             # use usage - capacity instead of usage/capacity, punish only overusage
-            return 1.0 + sum(0.0 + exp(self.coeff * max(0, len(x) - self.weights_graph.nodes[n]["capacity"])) - 1
+            return 1.0 + sum(0.0 + bounded_exp(self.coeff * max(0, len(x) - self.weights_graph.nodes[n]["capacity"])) - 1
                        for n, x in invertres(r).iteritems())
 
         score = calcscore(ret)

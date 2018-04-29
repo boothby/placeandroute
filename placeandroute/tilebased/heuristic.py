@@ -5,7 +5,7 @@ from typing import List, Any, Dict
 import networkx as nx
 
 from placeandroute.tilebased.tactics import RandomInitTactic, BFSInitTactic, RipRerouteTactic, RerouteTactic
-
+from ..routing.bonnheuristic import bounded_exp
 
 class Constraint(object):
     """Class representing a constraint, essentially just a container for the variable mapping.
@@ -90,7 +90,7 @@ class TilePlacementHeuristic(object):
         """Return usage scores for the current qubits. Currently (e**overusage -1)/(e -1)"""
         return {n:
                 #    (exp(max(0, data['usage'] - data['capacity']))-1)/(math.e -1)
-                    data["usage"] + exp(
+                    data["usage"] + bounded_exp(
                         self.coeff * max(0, data['usage'] - data['capacity'])) - 1
                 for n, data in self.arch.nodes(data=True)}
 
