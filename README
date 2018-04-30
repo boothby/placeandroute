@@ -1,0 +1,12 @@
+placeandroute: an heuristic placement-and-routing utility for graph embedding
+-
+
+## Requirements
+Python 2.7 (pypy suggested), networkx, dwave-networkx libraries, matplotlib for drawing
+
+## Usage
+Constraints are represented as groups of variables, for example `Constraint([[1, 2], [3, 4, 5, 6]])` represents a
+constraint that uses six qubits of a chimera tile, leaving two free vertical/horizontal qubits.
+
+
+For examples, see the `tests` and `examples` folders.

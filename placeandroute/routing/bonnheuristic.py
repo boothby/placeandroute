@@ -7,6 +7,7 @@ from collections import defaultdict, Counter
 from typing import Set
 
 def bounded_exp(val, maxval=700.0):
+    #exp() throws an exception if the parameter is too high
     return exp(min(maxval, val))
 
 def fast_steiner_tree(graph, voi_clusters, heuristic=None):
