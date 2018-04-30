@@ -5,7 +5,7 @@ from math import exp, log
 import networkx as nx
 from collections import defaultdict
 
-from placeandroute.routing.bonnheuristic import MinMaxRouter
+from placeandroute.routing.bonnheuristic import MinMaxRouter, bounded_exp
 #from .heuristic import TilePlacementHeuristic, Constraint
 
 
@@ -261,7 +261,7 @@ class ChainsFindTactic(Tactic):
                 ndat = wgraph.nodes[node]
                 usage = max(float(ndat["usage"] )/ ndat["capacity"], ndat["usage"] - ndat["capacity"])
                 for _, _, data in wgraph.in_edges(node, data=True):
-                    data["weight"] = exp(scaling_factor * usage)
+                    data["weight"] = bounded_exp(scaling_factor * usage)
 
         set_weights(wgraph.nodes)
 
@@ -290,7 +290,7 @@ class ChainsFindTactic(Tactic):
         for choice in parent.choices:
             # variables mapped to this choice that are unrelated to this constraints
             unrelated = [mapsto[target].difference(varrow) for varrow, target in zip(constraint.tile, choice)]
-            unrel_score = sum(exp(scaling_factor * max(0, len(unrel_nodes)- wgraph.nodes[target]["capacity"]))-1
+            unrel_score = sum(bounded_exp(scaling_factor * max(0, len(unrel_nodes)- wgraph.nodes[target]["capacity"]))-1
                               for unrel_nodes, target in zip(unrelated, choice))
 
             score = scores[0][choice[0]] + scores[1][choice[1]] + unrel_score
