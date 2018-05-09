@@ -84,7 +84,7 @@ class TestTileBased(TestCase):
         s = 16
         g, chs = chimeratiles(s,s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print h.run()
+        print h.run(stop_first=True)
         for c, t in h.constraint_placement.iteritems():
             print c.tile, t
         print repr(h.chains)

@@ -10,7 +10,7 @@ def bounded_exp(val, maxval=700.0):
     #exp() throws an exception if the parameter is too high
     return exp(min(maxval, val))
 
-def fast_steiner_tree(graph, voi_clusters, heuristic=None):
+def fast_steiner_tree_old(graph, voi_clusters, heuristic=None):
     # type: (nx.Graph, Iterable[Set[Any]]) -> FrozenSet[Any]
     """Finds a low-cost Steiner tree by progressively connecting the terminal vertices."""
     ephnode = "ephemeral"
@@ -33,6 +33,44 @@ def fast_steiner_tree(graph, voi_clusters, heuristic=None):
 
     treenodes = graph.neighbors(ephnode)
     graph.remove_node(ephnode)
+    return frozenset(treenodes)
+
+def fast_steiner_tree(graph, voi_clusters, heuristic=None):
+    ephstart = "ephstart"
+    ephdest = "ephdest"
+    voi_iter = iter(voi_clusters)
+    graph.add_node(ephdest)
+    voi_indexes = dict()
+    if heuristic:
+        def heur_func(a,b):
+            if a not in heuristic:
+                return 0
+            return min(heuristic[a][x] for xcl in graph.predecessors(b) for x in voi_indexes[xcl])
+    else:
+        heur_func = None
+
+    for node in next(voi_iter):
+        graph.add_edge(ephstart, node, weight=0)
+
+    for voi_index, other_vois in enumerate(voi_iter):
+        cluster_node = ("ephcluster", voi_index)
+        for node in other_vois:
+            graph.add_edge(node, cluster_node, weight=0)
+        graph.add_edge(cluster_node, ephdest, weight=0)
+        voi_indexes[cluster_node] = other_vois
+
+    while voi_indexes:
+        path = nx.astar_path(graph, ephstart, ephdest, heuristic=heur_func)
+        for nn in path[2:-3]:
+            graph.add_edge(ephstart, nn, weight=0)
+        cluster_node = path[-2]
+        for node in voi_indexes[cluster_node]:
+            graph.add_edge(ephstart, node, weight=0)
+        graph.remove_node(cluster_node)
+        del voi_indexes[cluster_node]
+    graph.remove_node(ephdest)
+    treenodes = graph.neighbors(ephstart)
+    graph.remove_node(ephstart)
     return frozenset(treenodes)
 
 
@@ -60,13 +98,10 @@ class MinMaxRouter(object):
         self.weights_graph = nx.DiGraph(graph)
         self.original_graph = graph
         self.epsilon = float(epsilon)
-        # self._astar_heuristic = defaultdict(lambda: defaultdict(float))
         self.coeff = log(sum(d["capacity"] for _, d in self.weights_graph.nodes(data=True)))# high to discourage overlap
         self._initialize_weights()
-
-    # def _heuristic_len(self,a,b):
-    #    """Heuristic distance between nodes"""
-    #    return self._astar_heuristic[a][b]
+        #self._heuristic_dist = dict(nx.all_pairs_dijkstra_path_length(self.weights_graph))
+        self._heuristic_dist = None
 
     def _initialize_weights(self):
         """Initializes weights. Sets the edge weights on the terminals, in order to discourage chains passing by
@@ -109,8 +144,7 @@ class MinMaxRouter(object):
                          for node, terminals in self.terminals.iteritems()}
         for _ in xrange(effort):
             for node, terminals in self.terminals.iteritems():
-                # newtree = fast_steiner_tree(self.wgraph, iter(terminals), heuristic=self._heuristic_len)
-                newtree = fast_steiner_tree(self.weights_graph, term_clusters[node])
+                newtree = fast_steiner_tree(self.weights_graph, term_clusters[node], heuristic=self._heuristic_dist)
                 candidatetrees[node][newtree] += 1
                 self.increase_weights(newtree)
 
