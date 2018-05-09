@@ -1,3 +1,4 @@
+from multiprocessing import Pool
 from unittest import TestCase
 
 from os.path import dirname
@@ -6,6 +7,9 @@ from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
 from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution
 from placeandroute.problemgraph import parse_cnf
 import matplotlib
+
+from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
+
 matplotlib.verbose = True # workaround for pycharm
 from matplotlib.cm import get_cmap
 import matplotlib.pyplot as plt
@@ -44,7 +48,7 @@ def show_result(s, g, h):
 def test_result(tile_graph, cnf, heur):
     chains = heur.chains
     for constraint in cnf:
-        assert heur.constraint_placement.has_key(constraint)
+        assert heur.constraint_placement.has_key(constraint), heur.constraint_placement
         var_rows = constraint.tile
         for v1, v2 in product(*var_rows):
             if v1 == v2: continue
@@ -102,4 +106,19 @@ class TestTileBased(TestCase):
         test_result(g, cs, h)
         show_result(s, g, h)
 
+    def test_par(self):
+        with open(dirname(__file__) + "/../simple60.cnf") as f:
+            cnf = (parse_cnf(f))
+        cnf = [map(lambda  x: x//6, clause) for clause in cnf[:50]]
+        cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
+        s = 16
+        g, chs = chimeratiles(s,s)
+        h = ParallelPlacementHeuristic(cs, g, chs)
+        pool = Pool(processes=4)
+        print h.par_run(pool, stop_first=True)
+        for c, t in h.constraint_placement.iteritems():
+            print c.tile, t
+        print repr(h.chains)
+        test_result(g, cs, h)
+        show_result(s, g, h)
 

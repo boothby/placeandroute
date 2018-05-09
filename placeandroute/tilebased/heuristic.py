@@ -16,8 +16,13 @@ class Constraint(object):
         Currently the variable mapping is represented as a list of list of variables. Each inner list represents a set
         of variables that can be placed in any order. Considering Chimera, the mapping consists in two lists, each
         list containing the variables that go in a 4 qubit row. Todo: add multiple alternative mappings"""
-        self.tile = vars
+        self.tile = tuple(tuple(varrow) for varrow in vars)
 
+    def __eq__(self, other):
+        return self.tile == other.tile
+
+    def __hash__(self):
+        return hash(self.tile)
 
 class TilePlacementHeuristic(object):
     """Heuristic constraint placer. Tries to decrease overused qubits by ripping and rerouting"""

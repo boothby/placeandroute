@@ -36,9 +36,9 @@ class ParallelPlacementHeuristic(TilePlacementHeuristic):
     def _run_stop(self, init_tat):
         subobj = TilePlacementHeuristic(self.constraints, self.arch, self.choices)
         subobj._init_tactics = [init_tat]
-        return subobj.run(stop_first=False), subobj
+        return subobj.run(stop_first=True), subobj
 
     def _run_full(self, init_tat):
         subobj = TilePlacementHeuristic(self.constraints, self.arch, self.choices)
         subobj._init_tactics = [init_tat]
-        return subobj.run(stop_first=True), subobj
+        return subobj.run(stop_first=False), subobj
