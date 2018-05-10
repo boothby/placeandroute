@@ -1,8 +1,12 @@
 from os.path import dirname
 
-from placeandroute.tilebased.heuristic import Constraint, TilePlacementHeuristic
+from six import iteritems, print_
+
+from placeandroute.tilebased.heuristic import Constraint
+from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
 from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution
 from placeandroute.problemgraph import parse_cnf
+from multiprocessing import Pool
 import dwave_networkx as dwnx
 
 def cnf_to_constraints(clauses, num_vars):
@@ -28,20 +32,21 @@ if __name__ == '__main__':
     tile_graph, choices = chimeratiles(chimera_size, chimera_size)
 
     #initialize and run heuristic
-    heuristic = TilePlacementHeuristic(constraints, tile_graph, choices)
-    success = heuristic.run()
+    heuristic = ParallelPlacementHeuristic(constraints, tile_graph, choices)
+    pool = Pool()
+    success = heuristic.par_run(pool)
 
     #print results
     if success:
-        print "Success"
+        print_("Success")
         # constraint_placement is a map from constraint to tile
-        for c, t in heuristic.constraint_placement.iteritems():
-            print c.tile, t
+        for c, t in iteritems(heuristic.constraint_placement):
+            print_(c.tile, t)
 
-        print "Expanding chains"
+        print_("Expanding chains")
         # heuristic.chains maps from variable to tile, expand to a map variable->qubit
         chains = expand_solution(tile_graph, heuristic.chains, dwnx.chimera_graph(chimera_size))
 
-        print repr(chains)
+        print_(repr(chains))
     else:
-        print "Failure"
+        print_("Failure")

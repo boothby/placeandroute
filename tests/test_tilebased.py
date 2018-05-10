@@ -3,6 +3,8 @@ from unittest import TestCase
 
 from os.path import dirname
 
+from six import iteritems, print_
+
 from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
 from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution
 from placeandroute.problemgraph import parse_cnf
@@ -33,12 +35,12 @@ def show_result(s, g, h):
     cg, layout = create(s, s)
     xdict = expand_solution(g, h.chains, cg)
     x = nx.Graph()
-    for k, v in xdict.iteritems():
+    for k, v in iteritems(xdict):
         x.add_node(k, mapto=v)
     #interactive_embeddingview(x, s, False)
     color = cycle(get_cmap("tab20").colors)
     nx.draw(cg, layout, node_color="gray", edge_color="gray")
-    for k,vs in xdict.iteritems():
+    for k,vs in iteritems(xdict):
         col = next(color)
         subcg = cg.subgraph(vs)
         nx.draw(subcg, layout, node_color=col, edge_color=[col]*subcg.number_of_edges())
@@ -84,10 +86,10 @@ class TestTileBased(TestCase):
         s = 16
         g, chs = chimeratiles(s,s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print h.run(stop_first=True)
-        for c, t in h.constraint_placement.iteritems():
-            print c.tile, t
-        print repr(h.chains)
+        print_(h.run(stop_first=True))
+        for c, t in iteritems(h.constraint_placement):
+            print_(c.tile, t)
+        print_(repr(h.chains))
         test_result(g, cs, h)
         show_result(s, g, h)
 
@@ -99,10 +101,10 @@ class TestTileBased(TestCase):
         s = 8
         g, chs = chimeratiles(s,s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print h.run()
-        for c, t in h.constraint_placement.iteritems():
-            print c.tile, t
-        print repr(h.chains)
+        print_(h.run())
+        for c, t in iteritems(h.constraint_placement):
+            print_(c.tile, t)
+        print_(repr(h.chains))
         test_result(g, cs, h)
         show_result(s, g, h)
 
@@ -115,10 +117,10 @@ class TestTileBased(TestCase):
         g, chs = chimeratiles(s,s)
         h = ParallelPlacementHeuristic(cs, g, chs)
         pool = Pool(processes=4)
-        print h.par_run(pool, stop_first=True)
-        for c, t in h.constraint_placement.iteritems():
-            print c.tile, t
-        print repr(h.chains)
+        print_(h.par_run(pool, stop_first=True))
+        for c, t in iteritems(h.constraint_placement):
+            print_(c.tile, t)
+        print_(repr(h.chains))
         test_result(g, cs, h)
         show_result(s, g, h)
 

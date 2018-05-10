@@ -5,7 +5,7 @@ setup(
     version='',
     packages=['placeandroute','placeandroute.routing',
               'placeandroute.tilebased'],
-    install_requires=['networkx', 'dwave-networkx'],
+    install_requires=['networkx', 'dwave-networkx', 'six'],
     url='',
     license='',
     author='',

@@ -1,9 +1,9 @@
 from multiprocessing import Pool
 
-from placeandroute.tilebased.heuristic import Constraint, TilePlacementHeuristic
-from placeandroute.tilebased.tactics import BFSInitTactic, RandomInitTactic
 from typing import Optional
-import networkx as nx
+
+from placeandroute.tilebased.heuristic import TilePlacementHeuristic
+
 
 class ParallelPlacementHeuristic(TilePlacementHeuristic):
     """Heuristic constraint placer. Tries to decrease overused qubits by ripping and rerouting"""
@@ -22,7 +22,7 @@ class ParallelPlacementHeuristic(TilePlacementHeuristic):
                     self.chains = subobj.chains
                     self.constraint_placement = subobj.constraint_placement
                     break
-            pool.terminate() #stop pending searches
+            pool.terminate()  # stop pending searches
         else:
             for subret, subobj in pool.imap_unordered(self._run_full, self._init_tactics):
                 ret = ret or subret

@@ -1,15 +1,17 @@
-from math import exp
-
 import math
-from typing import List, Any, Dict
+
 import networkx as nx
+from six import print_, itervalues, iteritems
+from typing import List, Any, Dict
 
 from placeandroute.tilebased.tactics import RandomInitTactic, BFSInitTactic, RipRerouteTactic, RerouteTactic
 from ..routing.bonnheuristic import bounded_exp
 
+
 class Constraint(object):
     """Class representing a constraint, essentially just a container for the variable mapping.
     """
+
     def __init__(self, vars):
         # type: (List[List[Any]]) -> None
         """Initializes the variable mapping.
@@ -24,8 +26,10 @@ class Constraint(object):
     def __hash__(self):
         return hash(self.tile)
 
+
 class TilePlacementHeuristic(object):
     """Heuristic constraint placer. Tries to decrease overused qubits by ripping and rerouting"""
+
     def __init__(self, constraints, archGraph, choices):
         # type: (List[Constraint], nx.Graph, List[List[Any]]) -> None
         self.constraints = constraints
@@ -34,12 +38,10 @@ class TilePlacementHeuristic(object):
         self.chains = {}
         self.choices = choices
         self.coeff = math.log(sum(d["capacity"] for _, d in archGraph.nodes(data=True)))  # high to discourage overlap
-        print("coeff", exp(self.coeff))
 
         # tactic choices
         self._init_tactics = [BFSInitTactic, RandomInitTactic] * 2 + [RandomInitTactic] * 1
         self._improve_tactics = [RipRerouteTactic.default(), RerouteTactic] * 50
-
 
     def run(self, stop_first=False):
         """Run the place and route heuristic. Iterate between tactics until a solution is found"""
@@ -47,7 +49,7 @@ class TilePlacementHeuristic(object):
         found = False
         for init_tactic in self._init_tactics:
             init_tactic.run_on(self)
-            print("Initialized, score is: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
+            print_("Initialized, score is: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
             if self.is_valid_embedding():
                 self.save_best()
                 if stop_first:
@@ -56,7 +58,7 @@ class TilePlacementHeuristic(object):
                 found = True
             for improve_tactic in self._improve_tactics:
                 improve_tactic(self).run()
-                print("Score improved to: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
+                print_("Score improved to: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
                 if self.is_valid_embedding():
                     self.save_best()
                     if stop_first:
@@ -80,15 +82,13 @@ class TilePlacementHeuristic(object):
     def restore_best(self):
         (self.constraint_placement, self.chains) = self._best_plc
 
-
     def is_valid_embedding(self):
         # type: () -> bool
         """Check if the current embedding is valid"""
         return self.get_overlapping() == 0
 
     def get_overlapping(self):
-        return sum(max(0, data['usage'] - data['capacity']) for _,data in self.arch.nodes(data=True))
-
+        return sum(max(0, data['usage'] - data['capacity']) for _, data in self.arch.nodes(data=True))
 
     def scores(self):
         # type: () -> Dict[Any, float]
@@ -99,16 +99,14 @@ class TilePlacementHeuristic(object):
                         self.coeff * max(0, data['usage'] - data['capacity'])) - 1
                 for n, data in self.arch.nodes(data=True)}
 
-
     def score(self):
-        return sum(self.scores().itervalues())
-
+        return sum(itervalues(self.scores()))
 
     def var_placement(self):
         # type: () -> Dict[Any,List[Any]]
         """Return variable placement (from constraint placement)"""
         placement = dict()
-        for constraint, tile in self.constraint_placement.iteritems():
+        for constraint, tile in iteritems(self.constraint_placement):
             for pnodes, anode in zip(constraint.tile, tile):
                 for pnode in pnodes:
                     if pnode not in placement:
@@ -116,10 +114,9 @@ class TilePlacementHeuristic(object):
                     placement[pnode].append(anode)
         return placement
 
-
     def fix_usage(p):
         for node, data in p.arch.nodes(data=True):
             data["usage"] = 0
-        for nodes in p.chains.itervalues():
+        for nodes in itervalues(p.chains):
             for node in nodes:
                 p.arch.nodes[node]["usage"] += 1

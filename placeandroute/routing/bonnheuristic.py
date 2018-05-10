@@ -1,14 +1,20 @@
 """Solve the routing problem using max min resource allocation"""
 import random as rand
-from typing import Optional, List, Any, Tuple, Dict, FrozenSet, Iterable, Set
-import networkx as nx
-from math import exp, log
 from collections import defaultdict, Counter
+from math import exp, log
+
+import networkx as nx
+from networkx import DiGraph
+from six import iteritems, itervalues
+from six.moves import range
+from typing import Optional, List, Any, Tuple, Dict, FrozenSet, Iterable
 from typing import Set
 
+
 def bounded_exp(val, maxval=700.0):
-    #exp() throws an exception if the parameter is too high
+    # exp() throws an exception if the parameter is too high
     return exp(min(maxval, val))
+
 
 def fast_steiner_tree_old(graph, voi_clusters, heuristic=None):
     # type: (nx.Graph, Iterable[Set[Any]]) -> FrozenSet[Any]
@@ -35,6 +41,7 @@ def fast_steiner_tree_old(graph, voi_clusters, heuristic=None):
     graph.remove_node(ephnode)
     return frozenset(treenodes)
 
+
 def fast_steiner_tree(graph, voi_clusters, heuristic=None):
     ephstart = "ephstart"
     ephdest = "ephdest"
@@ -42,7 +49,7 @@ def fast_steiner_tree(graph, voi_clusters, heuristic=None):
     graph.add_node(ephdest)
     voi_indexes = dict()
     if heuristic:
-        def heur_func(a,b):
+        def heur_func(a, b):
             if a not in heuristic:
                 return 0
             return min(heuristic[a][x] for xcl in graph.predecessors(b) for x in voi_indexes[xcl])
@@ -90,6 +97,7 @@ def choice_weighted(l):
 
 class MinMaxRouter(object):
     """Router that uses min-max resource allocation"""
+    weights_graph = None  # type: DiGraph
 
     def __init__(self, graph, terminals, epsilon=1.0):
         # type: (nx.Graph, Dict[Any, List[Any]], Optional[float]) -> None
@@ -98,9 +106,10 @@ class MinMaxRouter(object):
         self.weights_graph = nx.DiGraph(graph)
         self.original_graph = graph
         self.epsilon = float(epsilon)
-        self.coeff = log(sum(d["capacity"] for _, d in self.weights_graph.nodes(data=True)))# high to discourage overlap
+        self.coeff = log(
+            sum(d["capacity"] for _, d in self.weights_graph.nodes(data=True)))  # high to discourage overlap
         self._initialize_weights()
-        #self._heuristic_dist = dict(nx.all_pairs_dijkstra_path_length(self.weights_graph))
+        # self._heuristic_dist = dict(nx.all_pairs_dijkstra_path_length(self.weights_graph))
         self._heuristic_dist = None
 
     def _initialize_weights(self):
@@ -112,7 +121,7 @@ class MinMaxRouter(object):
         for _, data in self.weights_graph.nodes(data=True):
             data["usage"] = 0
 
-        for vs in self.terminals.itervalues():
+        for vs in itervalues(self.terminals):
             self.increase_weights(vs)
 
     def increase_weights(self, nodes):
@@ -140,10 +149,10 @@ class MinMaxRouter(object):
         if not self.terminals:
             return
 
-        term_clusters = {node:list(nx.connected_components(self.original_graph.subgraph(terminals)))
-                         for node, terminals in self.terminals.iteritems()}
-        for _ in xrange(effort):
-            for node, terminals in self.terminals.iteritems():
+        term_clusters = {node: list(nx.connected_components(self.original_graph.subgraph(terminals)))
+                         for node, terminals in iteritems(self.terminals)}
+        for _ in range(effort):
+            for node, terminals in iteritems(self.terminals):
                 newtree = fast_steiner_tree(self.weights_graph, term_clusters[node], heuristic=self._heuristic_dist)
                 candidatetrees[node][newtree] += 1
                 self.increase_weights(newtree)
@@ -161,15 +170,15 @@ class MinMaxRouter(object):
         ret = dict()
         resources = self.terminals.keys()
 
-        #start using most probable candidates
+        # start using most probable candidates
         for resource in resources:
             c = convex_result[resource][0][0]
             ret[resource] = c
 
-        #(variable -> qbits) -> (qbit -> variables)
+        # (variable -> qbits) -> (qbit -> variables)
         def invertres(r):
             ret = defaultdict(list)
-            for k, vv in r.iteritems():
+            for k, vv in iteritems(r):
                 for v in vv:
                     ret[v].append(k)
             return ret
@@ -177,8 +186,9 @@ class MinMaxRouter(object):
         # score(qbit) = coeff ** (overusage)
         def calcscore(r):
             # use usage - capacity instead of usage/capacity, punish only overusage
-            return 1.0 + sum(0.0 + bounded_exp(self.coeff * max(0, len(x) - self.weights_graph.nodes[n]["capacity"])) - 1
-                       for n, x in invertres(r).iteritems())
+            return 1.0 + sum(
+                0.0 + bounded_exp(self.coeff * max(0, len(x) - self.weights_graph.nodes[n]["capacity"])) - 1
+                for n, x in iteritems(invertres(r)))
 
         score = calcscore(ret)
         for temp in range(effort):

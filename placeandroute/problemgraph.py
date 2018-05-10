@@ -1,6 +1,5 @@
-
-from math import copysign
 from itertools import groupby
+from math import copysign
 
 
 def sign(x):
@@ -38,7 +37,6 @@ from collections import Counter, namedtuple
 from itertools import combinations
 
 iff = namedtuple('iff', ('f', 'x1', 'x2'))
-
 
 
 def decrease_width(clauses):
@@ -123,7 +121,9 @@ def cnf_to_hubo(clauses):
         ret.extend(clause_to_hubo(cl))
     return [(sum(a[0] for a in g), k) for k, g in groupby(ret, lambda x: x[1])]
 
+
 import networkx as nx
+
 
 def cnf_to_graph(clauses):
     qubo = cnf_to_qubo(clauses)
@@ -131,6 +131,5 @@ def cnf_to_graph(clauses):
     for val, term in qubo:
         if len(term) == 2:
             node1, node2 = term
-            ret.add_edge(node1,node2)
+            ret.add_edge(node1, node2)
     return ret
-
