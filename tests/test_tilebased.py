@@ -1,3 +1,4 @@
+import logging
 from itertools import product
 from multiprocessing import Pool
 from os.path import dirname
@@ -29,7 +30,10 @@ def test_result(tile_graph, cnf, heur):
                 (v1, v2, constraint, heur.constraint_placement[constraint], ch1, ch2)
 
 
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s %(asctime)s %(processName)s %(message)s')
+
 class TestTileBased(TestCase):
+
     def test1(self):
         h = TilePlacementHeuristic([], nx.Graph(), [])
         h.run()

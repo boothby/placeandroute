@@ -2,9 +2,9 @@
 
 import random
 from collections import Counter
-
+import logging
 import networkx as nx
-from six import iteritems, itervalues, print_
+from six import iteritems, itervalues
 from six.moves import range
 from typing import List, Dict, Set
 
@@ -102,6 +102,7 @@ def expand_solution(tile_graph, chains, chimera_graph):
     # type: (nx.Graph, Dict[int, List[int]], nx.Graph) -> Dict[int, List[int]]
     """Expand chains on tiles to chains on qubits. Uses annealing (better ideas are welcome)"""
     ret = dict()
+    logging.info("Detailed routing start")
 
     # todo: move these in a unit test for chimera_tiles()
     assert all(chimera_graph.has_edge(n1 * 4, n2 * 4) for n1, n2 in tile_graph.edges)
@@ -157,7 +158,7 @@ def flatten_assignment(chains, chimera_graph, ret, tile_graph):
         if new_score < score or random.random() < 0.00001 * stall / (new_score - score + 1):
             score = new_score
             count = new_count
-            print_("Overlapping qubits when expanding:", score, "stalled", stall)
+            logging.info("Overlapping qubits: %s %s %s", score, "stalled", stall)
             stall = 0
         else:
             ret[k] = oldv
