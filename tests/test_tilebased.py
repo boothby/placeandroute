@@ -9,7 +9,7 @@ import networkx as nx
 from six import iteritems, print_
 
 from placeandroute.problemgraph import parse_cnf
-from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution
+from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution, chimeratiles2, expand_solution2
 from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
 from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
 from placeandroute.tilebased.utils import cnf_to_constraints, show_result
@@ -85,7 +85,7 @@ class TestTileBased(TestCase):
         cnf = [map(lambda x: x // 6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
-        g, chs = chimeratiles(s, s)
+        g, chs = chimeratiles2(s, s)
         h = ParallelPlacementHeuristic(cs, g, chs)
         pool = Pool(processes=4)
         print_(h.par_run(pool, stop_first=True))
@@ -93,5 +93,5 @@ class TestTileBased(TestCase):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
         show_result(s, xdict)

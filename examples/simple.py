@@ -3,7 +3,7 @@ from os.path import dirname
 from six import iteritems, print_
 
 from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
-from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution
+from placeandroute.tilebased.chimera_tiles import chimeratiles2 as chimeratiles, expand_solution2 as expand_solution
 import logging
 from placeandroute.problemgraph import parse_cnf
 from multiprocessing import Pool

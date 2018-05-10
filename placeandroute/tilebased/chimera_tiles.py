@@ -8,6 +8,8 @@ from six import iteritems, itervalues
 from six.moves import range
 from typing import List, Dict, Set
 
+from placeandroute.tilebased.detailed_channel_routing import detailed_channel_routing, get_chimera_quotient_graph
+
 
 def chimeratiles(w, h):
     # type: (int, int) -> (nx.Graph, List[int])
@@ -164,3 +166,22 @@ def flatten_assignment(chains, chimera_graph, ret, tile_graph):
             ret[k] = oldv
             # slowly rise the temperature
             stall += 1
+
+import dwave_networkx as dwnx
+
+def chimeratiles2(w,h):
+    hwg = dwnx.chimera_graph(w,h)  # type: nx.Graph
+    quotient_graph, quotient_mapping, qubit_mapping = get_chimera_quotient_graph(hwg)
+    choices = []
+    for a, b, data in quotient_graph.edges(data=True):
+        if data["weight"] == 16:
+            choices.extend(([a, b], [b, a]))
+    for nodeset, data in quotient_graph.nodes(data=True):
+        data["capacity"] = len(nodeset)
+        data["usage"] = 0
+    return quotient_graph, choices
+
+
+def expand_solution2(_, chains, chimera_graph):
+    ret, _ = detailed_channel_routing(chains, chimera_graph)
+    return ret
