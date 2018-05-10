@@ -27,11 +27,14 @@ class Constraint(object):
     def __hash__(self):
         return hash(self.tile)
 
+default_init_tactics = [BFSInitTactic(), RandomInitTactic()] * 2 + [RandomInitTactic()] * 1
+default_improve_tactics = [RipRerouteTactic.repeated(), RerouteTactic()] * 50
 
 class TilePlacementHeuristic(object):
     """Heuristic constraint placer. Tries to decrease overused qubits by ripping and rerouting"""
 
-    def __init__(self, constraints, archGraph, choices):
+    def __init__(self, constraints, archGraph, choices, init_tactics=default_init_tactics,
+                 improve_tactics=default_improve_tactics):
         # type: (List[Constraint], nx.Graph, List[List[Any]]) -> None
         self.constraints = constraints
         self.arch = archGraph
@@ -42,8 +45,18 @@ class TilePlacementHeuristic(object):
         self.clear_best()
 
         # tactic choices
-        self._init_tactics = [BFSInitTactic, RandomInitTactic] * 2 + [RandomInitTactic] * 1
-        self._improve_tactics = [RipRerouteTactic.default(), RerouteTactic] * 50
+        self._init_tactics = init_tactics
+        self._improve_tactics = improve_tactics
+
+        logging.info("Tactics summary")
+        logging.info("Initialization")
+        for tactic in self._init_tactics:
+            tactic.setup(self)
+            logging.info("%s", tactic)
+        logging.info("Improvement")
+        for tactic in self._improve_tactics:
+            tactic.setup(self)
+            logging.info("%s", tactic)
 
     def run(self, stop_first=False):
         """Run the place and route heuristic. Iterate between tactics until a solution is found"""
@@ -51,8 +64,8 @@ class TilePlacementHeuristic(object):
         self.clear_best()
         found = False
         for init_tactic in self._init_tactics:
-            init_tactic.run_on(self)
-            logging.info("Initialized, score is: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
+            init_tactic.run()
+            logging.info("Initialized, score is: %e, overlapping: %d",self.score(),self.get_overlapping())
             if self.is_valid_embedding():
                 self.save_best()
                 if stop_first:
@@ -60,8 +73,8 @@ class TilePlacementHeuristic(object):
                     return True
                 found = True
             for improve_tactic in self._improve_tactics:
-                improve_tactic(self).run()
-                logging.info("Score improved to: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
+                improve_tactic.run()
+                logging.info("New score: %e, overlapping: %d",self.score(), self.get_overlapping())
                 if self.is_valid_embedding():
                     self.save_best()
                     if stop_first:
