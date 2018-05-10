@@ -1,11 +1,12 @@
 import math
 
 import networkx as nx
-from six import print_, itervalues, iteritems
+from six import itervalues, iteritems
 from typing import List, Any, Dict
 
 from placeandroute.tilebased.tactics import RandomInitTactic, BFSInitTactic, RipRerouteTactic, RerouteTactic
 from ..routing.bonnheuristic import bounded_exp
+import logging
 
 
 class Constraint(object):
@@ -38,6 +39,7 @@ class TilePlacementHeuristic(object):
         self.chains = {}
         self.choices = choices
         self.coeff = math.log(sum(d["capacity"] for _, d in archGraph.nodes(data=True)))  # high to discourage overlap
+        self.clear_best()
 
         # tactic choices
         self._init_tactics = [BFSInitTactic, RandomInitTactic] * 2 + [RandomInitTactic] * 1
@@ -45,11 +47,12 @@ class TilePlacementHeuristic(object):
 
     def run(self, stop_first=False):
         """Run the place and route heuristic. Iterate between tactics until a solution is found"""
+        logging.info("P&R start")
         self.clear_best()
         found = False
         for init_tactic in self._init_tactics:
             init_tactic.run_on(self)
-            print_("Initialized, score is: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
+            logging.info("Initialized, score is: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
             if self.is_valid_embedding():
                 self.save_best()
                 if stop_first:
@@ -58,7 +61,7 @@ class TilePlacementHeuristic(object):
                 found = True
             for improve_tactic in self._improve_tactics:
                 improve_tactic(self).run()
-                print_("Score improved to: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
+                logging.info("Score improved to: {}, overlapping: {}".format(self.score(), self.get_overlapping()))
                 if self.is_valid_embedding():
                     self.save_best()
                     if stop_first:

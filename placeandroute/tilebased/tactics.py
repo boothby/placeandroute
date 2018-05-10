@@ -1,10 +1,11 @@
+import logging
 import random
 from collections import defaultdict
 from itertools import combinations
 from math import log
 
 import networkx as nx
-from six import itervalues, iteritems, print_
+from six import itervalues, iteritems
 from typing import List, Any
 
 from placeandroute.routing.bonnheuristic import MinMaxRouter, bounded_exp
@@ -319,7 +320,7 @@ class RerouteTactic(Tactic):
         self.effort = effort
 
     def do_routing(self):
-        print_("Rerouting...")
+        logging.info("Rerouting...")
         p = self._placement
         effort = self.effort
         placement = p.var_placement()
@@ -388,7 +389,6 @@ class RipRerouteTactic(Tactic):
     def run(self):
         remove_choice = self.pick_worst()
         self.remove_tile(remove_choice)
-        # print self.score()
         best_place = self.find_best_place(remove_choice)
         self.insert_tile(remove_choice, best_place)
 
