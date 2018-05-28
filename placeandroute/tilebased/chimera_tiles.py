@@ -21,7 +21,9 @@ def chimeratiles(w, h):
     for c in range(w):
         row = []
         for r in range(h):
-            n1, n2 = i, i + 1
+            n1, n2 = 4*i, 4*(i + 1)
+            n1 = frozenset(range(n1,n1+4))
+            n2 = frozenset(range(n2,n2+4))
             i += 2
             ret.add_nodes_from([n1, n2], capacity=4, usage=0)
             ret.add_edge(n1, n2, capacity=16)
@@ -39,12 +41,13 @@ def sample_chain(cg, tile_graph):
     # type: (nx.Graph, nx.Graph) -> Set[int]
     """Sample a qubit chain from a tile chain"""
     chain_choice = set()
-    node_choices = lambda tile: (range(tile * 4, tile * 4 + 4))
+    node_choices = lambda tile: iter(tile)
     neighborhood = set()
 
     for node in nx.dfs_preorder_nodes(tile_graph):
         if not chain_choice:
             node_choice = random.choice([x for x in node_choices(node) if x in cg.nodes])
+            logging.debug("%s", (cg.nodes(), (node)))
         else:
             new_choices = []
             for new_node in node_choices(node):
@@ -57,29 +60,32 @@ def sample_chain(cg, tile_graph):
 
     return chain_choice
 
+# http://stackoverflow.com/q/3844948/
+def checkEqualIvo(lst):
+    return lst.count(lst[0]) == len(lst)
 
-def alternative_chains(cg, tile_graph, count, old):
+
+def alternative_chains(cg, tile_graph, count, old, node_to_tile):
     # type: (nx.Graph, nx.Graph, Dict, Set) -> nx.Graph
     """Find alternative qubits in a chain with overused qubits"""
 
-    node_choices = lambda tile: range(tile * 4, tile * 4 + 4)
+    node_choices = lambda tile: iter(tile)
 
     # start from the old chain
     expanded = set(old)
 
     for node in old:
         if count[node] > 1:  # if qubit is overused...
-            tile = node // 4
-            new_nodes = set(node_choices(tile))  # type: Set[int]
+            new_nodes = set(node_to_tile[node])  # type: Set[int]
             expanded.update(new_nodes)
             testsubg = cg.subgraph(expanded)
 
             # add qubits until they are properly connected
             # (added qubits must have the same degree of the old qubit, otherwise we miss connecting qubits)
-            while any(testsubg.degree(x) != testsubg.degree((x // 4) * 4) for x in new_nodes):
+            while not all(checkEqualIvo(map(testsubg.degree,node_to_tile[x])) for x in new_nodes):
                 newnew = set()
                 for n in iter(new_nodes):
-                    for x in tile_graph.neighbors(n // 4):
+                    for x in tile_graph.neighbors(node_to_tile[n]):
                         newnew.update(node_choices(x))
                 assert len(newnew.difference(new_nodes)) > 0
                 # new_nodes.update(newnew)
@@ -105,14 +111,10 @@ def expand_solution(tile_graph, chains, chimera_graph):
     """Expand chains on tiles to chains on qubits. Uses annealing (better ideas are welcome)"""
     ret = dict()
     logging.info("Detailed routing start")
-
-    # todo: move these in a unit test for chimera_tiles()
-    assert all(chimera_graph.has_edge(n1 * 4, n2 * 4) for n1, n2 in tile_graph.edges)
-    assert all(chimera_graph.has_edge(n1 * 4 + 1, n2 * 4 + 1) for n1, n2 in tile_graph.edges)
-    assert all(chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges.data() if
-               data["capacity"] == 16)
-    assert all(not chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges.data() if
-               data["capacity"] != 16)
+    node_to_tile = dict()
+    for tnode in tile_graph.nodes:
+        for nnode in tnode:
+            node_to_tile[nnode] = tnode
 
     # todo: sorted shoud be not needed anymore here
     for problemNode, tile_chain in sorted(chains.items(), key=lambda (k, v): -len(v)):
@@ -129,15 +131,25 @@ def expand_solution(tile_graph, chains, chimera_graph):
                 bestScore = score
             if score == 0:
                 break
-            search_space = alternative_chains(chimera_graph, tile_subgraph, count, ret[problemNode])
+            search_space = alternative_chains(chimera_graph, tile_subgraph, count, ret[problemNode], node_to_tile)
             ret[problemNode] = sample_chain(search_space, tile_subgraph)
         ret[problemNode] = best
-    flatten_assignment(chains, chimera_graph, ret, tile_graph)
+        logging.info("Placed constraint %s, score: %d", problemNode, bestScore)
+    flatten_assignment(chains, chimera_graph, ret, tile_graph, node_to_tile)
 
     return ret
 
 
-def flatten_assignment(chains, chimera_graph, ret, tile_graph):
+def test_chimera_tiles(chimera_graph, tile_graph):
+    assert all(chimera_graph.has_edge(n1 * 4, n2 * 4) for n1, n2 in tile_graph.edges)
+    assert all(chimera_graph.has_edge(n1 * 4 + 1, n2 * 4 + 1) for n1, n2 in tile_graph.edges)
+    assert all(chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges.data() if
+               data["capacity"] == 16)
+    assert all(not chimera_graph.has_edge(n1 * 4, n2 * 4 + 1) for n1, n2, data in tile_graph.edges.data() if
+               data["capacity"] != 16)
+
+
+def flatten_assignment(chains, chimera_graph, ret, tile_graph, node_to_tile):
     score, count = calc_score(ret)
     stall = 0
     while score > 0:
@@ -146,7 +158,7 @@ def flatten_assignment(chains, chimera_graph, ret, tile_graph):
         oldv = ret[k]
 
         problemsubg = tile_graph.subgraph(chains[k])  # chain in tile_space as nx.Graph
-        search_space = alternative_chains(chimera_graph, problemsubg, count, oldv)
+        search_space = alternative_chains(chimera_graph, problemsubg, count, oldv, node_to_tile)
 
         # try hard to find a better chain inbetween the alternatives
         # alternative_chains is expensive, exploit it

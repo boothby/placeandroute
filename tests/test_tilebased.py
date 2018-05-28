@@ -93,5 +93,5 @@ class TestTileBased(TestCase):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution(g, h.chains, dwnx.chimera_graph(s))
         show_result(s, xdict)
