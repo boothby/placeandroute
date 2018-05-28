@@ -8,7 +8,7 @@ import networkx as nx
 from six import itervalues, iteritems
 from typing import List, Any
 
-from placeandroute.routing.bonnheuristic import MinMaxRouter, bounded_exp
+from placeandroute.routing.bonnheuristic import MinMaxRouter, bounded_exp, fast_steiner_tree
 
 
 # from .heuristic import TilePlacementHeuristic, Constraint
@@ -338,9 +338,11 @@ class ChainsFindTactic(Tactic):
 class RerouteTactic(Tactic):
     """Throws away the current chain and reroute everything. Uses bonnroute."""
 
-    def __init__(self, effort=100):
+    def __init__(self, effort=100, steiner_func=fast_steiner_tree, astar_heuristic=False):
         Tactic.__init__(self)
         self.effort = effort
+        self.steiner_func = steiner_func
+        self._astar = astar_heuristic
 
     def __str__(self):
         return "[bonnroute on everything]"
@@ -349,7 +351,8 @@ class RerouteTactic(Tactic):
         p = self._placement
         effort = self.effort
         placement = p.var_placement()
-        router = MinMaxRouter(p.arch, placement, epsilon=1.0 / effort)
+        router = MinMaxRouter(p.arch, placement, epsilon=1.0 / effort, steiner_func=self.steiner_func,
+                              astar_heuristic=self._astar)
         router.run(effort)
         p.chains = router.result
         p.fix_usage()
@@ -370,7 +373,8 @@ class IncrementalRerouteTactic(RerouteTactic):
         placement = p.var_placement()
         for k, vs in iteritems(p.chains):
             placement[k] = set(placement[k]).union(vs)
-        router = MinMaxRouter(p.arch, placement, epsilon=1.0 / effort)
+        router = MinMaxRouter(p.arch, placement, epsilon=1.0 / effort, steiner_func=self.steiner_func,
+                              astar_heuristic=self._astar)
         router.run(effort)
         p.chains = router.result
         p.fix_usage()
