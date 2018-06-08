@@ -60,7 +60,7 @@ class TestTileBased(TestCase):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
         show_result(s, xdict)
 
     def test4(self):
@@ -71,27 +71,27 @@ class TestTileBased(TestCase):
         s = 8
         g, chs = chimeratiles(s, s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print_(h.run())
+        print_(h.run(stop_first=True))
         for c, t in iteritems(h.constraint_placement):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
         show_result(s, xdict)
 
     def test_par(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:
             cnf = (parse_cnf(f))
-        cnf = [map(lambda x: x // 6, clause) for clause in cnf[:50]]
+        #cnf = [map(lambda x: x // 6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
         g, chs = chimeratiles2(s, s)
         h = ParallelPlacementHeuristic(cs, g, chs)
         pool = Pool(processes=4)
-        print_(h.par_run(pool, stop_first=True))
+        print_(h.par_run(pool, stop_first=False))
         for c, t in iteritems(h.constraint_placement):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
         show_result(s, xdict)

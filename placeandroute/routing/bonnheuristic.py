@@ -108,10 +108,28 @@ class MinMaxRouter(object):
     def __init__(self, graph, terminals, epsilon=1.0, steiner_func=fast_steiner_tree, astar_heuristic=False):
         # type: (nx.Graph, Dict[Any, List[Any]], Optional[float], Optional[Callable]) -> None
         self.result = dict()
-        self.terminals = terminals
         self.weights_graph = nx.DiGraph(graph)
-        self.original_graph = graph
         self.epsilon = float(epsilon)
+
+
+
+        self.itonode = dict()
+        self.nodetoi = dict()
+        for index, node in  enumerate(graph.nodes):
+            self.itonode[index] = node
+            self.nodetoi[node] = index
+
+
+        nx.relabel_nodes(self.weights_graph, self.nodetoi, copy=False)
+        self.terminals = dict((k, frozenset(self.nodetoi[n] for n in v)) for k,v in iteritems(terminals))
+
+        self.term_clusters = dict()
+        for node, tset in iteritems(terminals):
+            clusters = []
+            for conncomp in nx.connected_components(graph.subgraph(tset)):
+                clusters.append(frozenset(self.nodetoi[n] for n in conncomp))
+            self.term_clusters[node] =  clusters
+
         self.coeff = log(
             sum(d["capacity"] for _, d in self.weights_graph.nodes(data=True)))  # high to discourage overlap
         self._initialize_weights()
@@ -129,19 +147,23 @@ class MinMaxRouter(object):
             data["usage"] = 0
 
         for vs in itervalues(self.terminals):
-            self.increase_weights(vs)
+            self._increase_weights(vs)
 
     def increase_weights(self, nodes):
         # type: (Iterable[Any]) -> None
+
+        self._increase_weights(self.nodetoi[n] for n in nodes)
+
+    def _increase_weights(self, nodes):
+        # type: (Iterable[int]) -> None
         """Increase weights on all incoming edges on a set of nodes"""
         for node in nodes:
             data = self.weights_graph.nodes[node]
             data["usage"] += 1
             usage = data["usage"] / data["capacity"]
-            for edge in self.weights_graph.in_edges(node):
-                data = self.weights_graph.edges[edge]
-                data["weight"] *= bounded_exp(max(0, self.epsilon * usage))
-                # self._astar_heuristic[node][edge[1]] = data["weight"]
+            exp_factor = bounded_exp(max(0, self.epsilon * usage))
+            for _,_,edata in self.weights_graph.in_edges(node, data=True):
+                edata["weight"] *= exp_factor
 
     def run(self, effort=100):
         # type: (Optional[int]) -> None
@@ -157,8 +179,7 @@ class MinMaxRouter(object):
         if not self.terminals:
             return
 
-        term_clusters = {node: list(map(frozenset, nx.connected_components(self.original_graph.subgraph(terminals))))
-                         for node, terminals in iteritems(self.terminals)}
+        term_clusters = self.term_clusters
 
         #prepare_heuristic
         if self._heuristic:
@@ -175,7 +196,7 @@ class MinMaxRouter(object):
             for node, terminals in iteritems(self.terminals):
                 newtree = steiner_tree(self.weights_graph, term_clusters[node], heuristic=heur_dist)
                 candidatetrees[node][newtree] += 1
-                self.increase_weights(newtree)
+                self._increase_weights(newtree)
 
         # get convex sum of candidate trees
         for node in self.terminals.keys():
@@ -225,4 +246,4 @@ class MinMaxRouter(object):
                 else:
                     ret[resource] = oldc
 
-        self.result = ret
+        self.result = dict((k, frozenset(self.itonode[i] for i in v)) for k,v in iteritems(ret))

@@ -29,7 +29,6 @@ class ParallelPlacementHeuristic(TilePlacementHeuristic):
                 self.chains = subobj.chains
                 self.constraint_placement = subobj.constraint_placement
                 self.save_best()
-            pool.join()
             self.restore_best()
         return ret
 
