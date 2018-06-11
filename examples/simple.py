@@ -29,7 +29,9 @@ if __name__ == '__main__':
     #initialize and run heuristic
     heuristic = ParallelPlacementHeuristic(constraints, tile_graph, choices)
     pool = Pool()
-    success = heuristic.par_run(pool)
+    success = heuristic.par_run(pool, stop_first=True)
+    #success = heuristic.run(stop_first=False)
+
 
     #print results
     if success:
