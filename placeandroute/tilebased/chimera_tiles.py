@@ -117,7 +117,7 @@ def expand_solution(tile_graph, chains, chimera_graph):
             node_to_tile[nnode] = tnode
 
     # todo: sorted shoud be not needed anymore here
-    for problemNode, tile_chain in sorted(chains.items(), key=lambda (k, v): -len(v)):
+    for problemNode, tile_chain in sorted(chains.items(), key=lambda kv: -len(kv[1])):
         tile_subgraph = tile_graph.subgraph(tile_chain)
         assert nx.is_connected(tile_subgraph), (tile_chain,)
         ret[problemNode] = sample_chain(chimera_graph, tile_subgraph)
