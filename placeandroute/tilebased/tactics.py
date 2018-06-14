@@ -138,7 +138,7 @@ class BFSInitTactic(Tactic):
 
         # "central" tile in arch graph
         arch_centrality = nx.betweenness_centrality(p.arch)
-        starttile = max(p.choices, key=lambda (x, y): arch_centrality[x] + arch_centrality[y])
+        starttile = max(p.choices, key=lambda xy: arch_centrality[xy[0]] + arch_centrality[xy[1]])
         insert_tactic.insert_tile(start, starttile)
 
         for _, constraint in nx.bfs_edges(cg, start):
