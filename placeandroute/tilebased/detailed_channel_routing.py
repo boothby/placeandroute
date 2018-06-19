@@ -435,7 +435,7 @@ def detailed_channel_routing(quotient_emb, graph,
     # this, we solve the channels in a random order.
 
     # this replaces for index, channel in iteritems(channels):
-    channel_indices = channels.keys()
+    channel_indices = list(channels.keys())
     random.shuffle(channel_indices)
     for index in channel_indices:
         channel = channels[index]

@@ -20,7 +20,7 @@ def mapl(func, seq):
 def test_result(tile_graph, cnf, heur):
     chains = heur.chains
     for constraint in cnf:
-        assert heur.constraint_placement.has_key(constraint), heur.constraint_placement
+        assert constraint in heur.constraint_placement, heur.constraint_placement
         var_rows = constraint.tile
         for v1, v2 in product(*var_rows):
             if v1 == v2: continue
@@ -57,7 +57,7 @@ class TestTileBased(TestCase):
         s = 16
         g, chs = chimeratiles(s, s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print_(h.run(stop_first=False))
+        print_(h.run(stop_first=True))
         for c, t in iteritems(h.constraint_placement):
             print_(c.tile, t)
         print_(repr(h.chains))
@@ -84,12 +84,12 @@ class TestTileBased(TestCase):
     def test_par(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:
             cnf = (parse_cnf(f))
-        #cnf = [mapl(lambda x: x // 6, clause) for clause in cnf[:50]]
+        cnf = [mapl(lambda x: x // 6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
         g, chs = chimeratiles2(s, s)
         h = ParallelPlacementHeuristic(cs, g, chs)
-        pool = Pool(processes=4)
+        pool = Pool()
         print_(h.par_run(pool, stop_first=False))
         for c, t in iteritems(h.constraint_placement):
             print_(c.tile, t)
