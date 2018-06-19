@@ -14,6 +14,8 @@ from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
 from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
 from placeandroute.tilebased.utils import cnf_to_constraints, show_result
 
+def mapl(func, seq):
+    return list(map(func, seq))
 
 def test_result(tile_graph, cnf, heur):
     chains = heur.chains
@@ -50,12 +52,12 @@ class TestTileBased(TestCase):
     def test3(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:
             cnf = (parse_cnf(f))
-        cnf = [map(lambda x: x // 2, clause) for clause in cnf[:130]]
+        cnf = [mapl(lambda x: x // 2, clause) for clause in cnf[:130]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
         g, chs = chimeratiles(s, s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print_(h.run(stop_first=True))
+        print_(h.run(stop_first=False))
         for c, t in iteritems(h.constraint_placement):
             print_(c.tile, t)
         print_(repr(h.chains))
@@ -66,7 +68,7 @@ class TestTileBased(TestCase):
     def test4(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:
             cnf = (parse_cnf(f))
-        cnf = [map(lambda x: x // 6, clause) for clause in cnf[:50]]
+        cnf = [mapl(lambda x: x // 6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 8
         g, chs = chimeratiles(s, s)
@@ -82,7 +84,7 @@ class TestTileBased(TestCase):
     def test_par(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:
             cnf = (parse_cnf(f))
-        #cnf = [map(lambda x: x // 6, clause) for clause in cnf[:50]]
+        #cnf = [mapl(lambda x: x // 6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
         g, chs = chimeratiles2(s, s)

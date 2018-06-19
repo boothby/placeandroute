@@ -19,7 +19,8 @@ def cnf_to_constraints(clauses, num_vars):
     ancilla = num_vars + 1
     for clause in clauses:
         #                 first two vars        third var + ancilla
-        yield Constraint([map(abs, clause[:2]), [abs(clause[2]), ancilla]])
+        clause = list(clause)
+        yield Constraint([list(map(abs, clause[:2])), [abs(clause[2]), ancilla]])
         ancilla += 1
 
 
