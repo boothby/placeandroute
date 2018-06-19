@@ -18,6 +18,7 @@ class Tactic(object):
     """Generic tactic object. Will hold the TileHeuristic object in the parent attribute"""
 
     def setup(self, placement):
+        #note: called once, at initialization
         self._placement = placement
 
     def run(self):
@@ -38,7 +39,6 @@ class RepeatTactic(Tactic):
         Tactic.__init__(self)
         self._sub_tactic = subTactic
         self._max_no_improvement = max_no_improvement
-        self.best_found = (None, None, None)
 
     def setup(self, placement):
         Tactic.setup(self,placement)
@@ -47,9 +47,13 @@ class RepeatTactic(Tactic):
     def __str__(self):
         return "[repeated {!s}, max stall {}]".format(self._sub_tactic, self._max_no_improvement)
 
+    def clear_best(self):
+        self.best_found = (None, None, None)
+
     def run(self):
         no_improvement = 0
         tactic = self._sub_tactic
+        self.clear_best()
         self.save_best()
         while no_improvement < self._max_no_improvement:
             tactic.run()
@@ -230,6 +234,9 @@ class IterPickTactic(Tactic):
 
     def __init__(self):
         Tactic.__init__(self)
+
+    def setup(self, placement):
+        Tactic.setup(self, placement)
         self.counter = 0
 
     def pick_worst(self):
@@ -249,6 +256,9 @@ class CostPickTactic(Tactic):
         Tactic.__init__(self)
         self.max_no_improvement = max_no_improvement
         self.tabu_size = tabu_size
+
+    def setup(self, placement):
+        Tactic.setup(self, placement)
         self.rip_tabu = []
 
     def __str__(self):
