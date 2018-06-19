@@ -27,8 +27,8 @@ class Constraint(object):
     def __hash__(self):
         return hash(self.tile)
 
-default_init_tactics = [BFSInitTactic(), RandomInitTactic()] * 2 + [RandomInitTactic()] * 1
-default_improve_tactics = [RipRerouteTactic.repeated(), RerouteTactic()] * 50
+default_init_tactics = [BFSInitTactic.default(), RandomInitTactic.default()] * 2 + [RandomInitTactic.default()] * 1
+default_improve_tactics = [RipRerouteTactic.repeated(), RerouteTactic.default()] * 50
 
 class TilePlacementHeuristic(object):
     """Heuristic constraint placer. Tries to decrease overused qubits by ripping and rerouting"""
@@ -48,21 +48,31 @@ class TilePlacementHeuristic(object):
         self._init_tactics = init_tactics
         self._improve_tactics = improve_tactics
 
+
+    def initialize_tactics(self):
         logging.info("Tactics summary")
         logging.info("Initialization")
-        for tactic in self._init_tactics:
-            tactic.setup(self)
+        init_tactic_factories = self._init_tactics
+        self._init_tactics = []
+        for tacticFactory in init_tactic_factories:
+            tactic = tacticFactory.create(self)
+            self._init_tactics.append(tactic)
             logging.info("%s", tactic)
+
+        improve_tactic_factories = self._improve_tactics
+        self._improve_tactics = []
         logging.info("Improvement")
-        for tactic in self._improve_tactics:
-            tactic.setup(self)
+        for tacticFactory in improve_tactic_factories:
+            tactic = tacticFactory.create(self)
+            self._improve_tactics.append(tactic)
             logging.info("%s", tactic)
 
     def run(self, stop_first=False):
         """Run the place and route heuristic. Iterate between tactics until a solution is found"""
-        logging.info("P&R start")
+        self.initialize_tactics()
         self.clear_best()
         found = False
+        logging.info("P&R start")
         for init_tactic in self._init_tactics:
             init_tactic.run()
             logging.info("Initialized, score is: %e, overlapping: %d",self.score(),self.get_overlapping())

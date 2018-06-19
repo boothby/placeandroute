@@ -13,11 +13,24 @@ from placeandroute.routing.bonnheuristic import MinMaxRouter, bounded_exp, fast_
 
 # from .heuristic import TilePlacementHeuristic, Constraint
 
+class TacticFactory(object):
+    def __init__(self, tactic, **params):
+        self.tactic = tactic
+        self.params = params
+
+    def create(self, placement):
+        return self.tactic(placement, **self.params)
+
 
 class Tactic(object):
     """Generic tactic object. Will hold the TileHeuristic object in the parent attribute"""
 
-    def setup(self, placement):
+    @classmethod
+    def default(cls):
+        return TacticFactory(cls)
+
+
+    def __init__(self, placement):
         #note: called once, at initialization
         self._placement = placement
 
@@ -34,15 +47,18 @@ class Tactic(object):
 
 class RepeatTactic(Tactic):
     """Repeats a tactic until there is no improvement for max turns"""
-
-    def __init__(self, subTactic, max_no_improvement):
-        Tactic.__init__(self)
-        self._sub_tactic = subTactic
+    def __init__(self, placement, subTactic, max_no_improvement):
+        Tactic.__init__(self, placement)
+        self._sub_tactic = subTactic.create(placement)
         self._max_no_improvement = max_no_improvement
 
-    def setup(self, placement):
-        Tactic.setup(self,placement)
-        self._sub_tactic.setup(placement)
+    @classmethod
+    def default(cls):
+        raise NotImplementedError
+
+    @classmethod
+    def with_(cls, subfact, maxnoimp):
+        return TacticFactory(cls, subTactic=subfact, max_no_improvement=maxnoimp)
 
     def __str__(self):
         return "[repeated {!s}, max stall {}]".format(self._sub_tactic, self._max_no_improvement)
@@ -99,8 +115,7 @@ class RandomInitTactic(Tactic):
                 possible_choices = choices
             position = random.choice(possible_choices)
             p.constraint_placement[constraint] = position
-        final_reroute = RerouteTactic()
-        final_reroute.setup(p)
+        final_reroute = RerouteTactic(p)
         final_reroute.do_routing()
 
 
@@ -127,14 +142,11 @@ class BFSInitTactic(Tactic):
             for v1, v2 in combinations(cset, 2):
                 cg.add_edge(v1, v2)
 
-        pick_t = CostPickTactic()  # pick tactic
-        insert_tactic = InsertTactic.quick()
-        remove_tactic = RipTactic()
-        best_place = ChainsFindTactic()
-        pick_t.setup(p)
-        insert_tactic.setup(p)
-        remove_tactic.setup(p)
-        best_place.setup(p)
+        pick_t = CostPickTactic(p)  # pick tactic
+        insert_tactic = InsertTactic.quick().create(p)
+        remove_tactic = RipTactic(p)
+        best_place = ChainsFindTactic(p)
+
 
         # "central" constraint in problem graph
         centrality = nx.betweenness_centrality(cg)
@@ -193,50 +205,14 @@ class RipTactic(Tactic):
                         leaf = newleaf
 
 
-#
-# class CombinedTactic(Tactic):
-#     def do_try(self):
-#         # try to improve result ripping and rerouting or rerouting everything. Probably will be refactored into .run()
-#         effort = 10.0
-#         rare_reroute = 0
-#         for TClass in self._pick_tactics:
-#             tactic = TClass(self)
-#             no_improvement = 0
-#             while no_improvement <= tactic.max_no_improvement:
-#                 if self.is_valid_embedding():
-#                     return True
-#
-#                 score = self.score()
-#                 print(int(score), [self.constraint_placement[c] for c in self.constraints])
-#                 if self.save_best(if_score=score):
-#                     no_improvement = 0
-#                 else:
-#                     no_improvement += 1
-#                     rare_reroute += 1
-#                 if rare_reroute >= 20:
-#                     rare_reroute = 0
-#                     effort += 5.0
-#                     RerouteTactic(self).do_routing(int(effort))
-#                 else:
-#                     remove_choice = tactic.pick_worst()
-#                     self.remove_tile(remove_choice)
-#                     #print self.score()
-#                     best_place = self.find_best_place(remove_choice)
-#                     self.insert_tile(remove_choice, best_place)
-#
-#         return self.is_valid_embedding()
-
 
 class IterPickTactic(Tactic):
     """Choose a constraint to reroute using round-robin"""
     def __str__(self):
         return "[round-robin]"
 
-    def __init__(self):
-        Tactic.__init__(self)
-
-    def setup(self, placement):
-        Tactic.setup(self, placement)
+    def __init__(self, placement):
+        Tactic.__init__(self, placement)
         self.counter = 0
 
     def pick_worst(self):
@@ -252,13 +228,10 @@ class CostPickTactic(Tactic):
      todo: calculate cost in only one place
     """
 
-    def __init__(self, tabu_size=10, max_no_improvement=400):
-        Tactic.__init__(self)
+    def __init__(self, placement, tabu_size=10, max_no_improvement=400):
+        Tactic.__init__(self, placement)
         self.max_no_improvement = max_no_improvement
         self.tabu_size = tabu_size
-
-    def setup(self, placement):
-        Tactic.setup(self, placement)
         self.rip_tabu = []
 
     def __str__(self):
@@ -286,8 +259,8 @@ class CostPickTactic(Tactic):
 class ChainsFindTactic(Tactic):
     """Choose the best tile for a constraint based on shortest path from already-present chains"""
 
-    def setup(self, placement):
-        Tactic.setup(self,placement)
+    def __init__(self, placement):
+        Tactic.__init__(self,placement)
         self.scaling_factor = placement.coeff
 
     def __str__(self):
@@ -348,8 +321,8 @@ class ChainsFindTactic(Tactic):
 class RerouteTactic(Tactic):
     """Throws away the current chain and reroute everything. Uses bonnroute."""
 
-    def __init__(self, effort=100, steiner_func=fast_steiner_tree, astar_heuristic=False):
-        Tactic.__init__(self)
+    def __init__(self, placement, effort=100, steiner_func=fast_steiner_tree, astar_heuristic=False):
+        Tactic.__init__(self, placement)
         self.effort = effort
         self.steiner_func = steiner_func
         self._astar = astar_heuristic
@@ -395,22 +368,18 @@ class InsertTactic(Tactic):
 
     @classmethod
     def quick(cls):
-        return cls(IncrementalRerouteTactic())
+        return TacticFactory(cls, routingTactic=IncrementalRerouteTactic.default())
 
     @classmethod
     def slow(cls):
-        return cls(RerouteTactic())
+        return TacticFactory(cls, routingTactic=RerouteTactic.default())
 
     def __str__(self):
         return "[insert, then {}]".format(self._routing_tactic)
 
-    def __init__(self, routingTactic):
-        Tactic.__init__(self)
-        self._routing_tactic = routingTactic
-
-    def setup(self, placement):
-        Tactic.setup(self, placement)
-        self._routing_tactic.setup(placement)
+    def __init__(self, placement, routingTactic):
+        Tactic.__init__(self, placement)
+        self._routing_tactic = routingTactic.create(placement)
 
     def insert_tile(self, constraint, tile):
         # type: (Constraint, List[List[Any]]) -> None
@@ -424,22 +393,15 @@ class RipRerouteTactic(Tactic):
 
     @classmethod
     def repeated(cls):
-        return RepeatTactic(cls(), max_no_improvement=20)
+        return RepeatTactic.with_(subfact=cls.default(), maxnoimp=20)
 
-    def __init__(self, removeTactic=RipTactic(), findTactic=ChainsFindTactic(), insertTactic=InsertTactic.quick(),
-                 pickTactic=CostPickTactic()):
-        Tactic.__init__(self)
-        self._remove = removeTactic
-        self._find = findTactic
-        self._insert = insertTactic
-        self._pick = pickTactic
-
-    def setup(self, placement):
-        Tactic.setup(self,placement)
-        self._remove.setup(placement)
-        self._find.setup(placement)
-        self._insert.setup(placement)
-        self._pick.setup(placement)
+    def __init__(self, placement, removeTactic=RipTactic.default(), findTactic=ChainsFindTactic.default(), insertTactic=InsertTactic.quick(),
+                 pickTactic=CostPickTactic.default()):
+        Tactic.__init__(self, placement)
+        self._remove = removeTactic.create(placement)
+        self._find = findTactic.create(placement)
+        self._insert = insertTactic.create(placement)
+        self._pick = pickTactic.create(placement)
 
 
     def __str__(self):
