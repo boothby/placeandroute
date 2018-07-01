@@ -227,9 +227,8 @@ class CostPickTactic(Tactic):
      todo: calculate cost in only one place
     """
 
-    def __init__(self, placement, tabu_size=10, max_no_improvement=400):
+    def __init__(self, placement, tabu_size=10):
         Tactic.__init__(self, placement)
-        self.max_no_improvement = max_no_improvement
         self.tabu_size = tabu_size
         self.rip_tabu = []
 
@@ -333,7 +332,7 @@ class RerouteTactic(Tactic):
         p = self._placement
         effort = self.effort
         placement = p.var_placement()
-        router = MinMaxRouter(p.arch, placement, epsilon=1.0 / effort, steiner_func=self.steiner_func,
+        router = MinMaxRouter(p.arch, placement, epsilon=p.coeff / effort, steiner_func=self.steiner_func,
                               astar_heuristic=self._astar)
         router.run(effort)
         p.chains = router.result
@@ -355,7 +354,7 @@ class IncrementalRerouteTactic(RerouteTactic):
         placement = p.var_placement()
         for k, vs in iteritems(p.chains):
             placement[k] = set(placement[k]).union(vs)
-        router = MinMaxRouter(p.arch, placement, epsilon=1.0 / effort, steiner_func=self.steiner_func,
+        router = MinMaxRouter(p.arch, placement, epsilon=p.coeff / effort, steiner_func=self.steiner_func,
                               astar_heuristic=self._astar)
         router.run(effort)
         p.chains = router.result
@@ -392,7 +391,7 @@ class RipRerouteTactic(Tactic):
 
     @classmethod
     def repeated(cls):
-        return RepeatTactic.with_(subfact=cls.default(), maxnoimp=20)
+        return RepeatTactic.with_(subfact=cls.default(), maxnoimp=50)
 
     def __init__(self, placement, removeTactic=RipTactic.default(), findTactic=ChainsFindTactic.default(), insertTactic=InsertTactic.quick(),
                  pickTactic=CostPickTactic.default()):
