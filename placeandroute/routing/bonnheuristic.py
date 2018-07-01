@@ -105,7 +105,7 @@ class MinMaxRouter(object):
     """Router that uses min-max resource allocation"""
     weights_graph = None  # type: DiGraph
 
-    def __init__(self, graph, terminals, epsilon=1.0, steiner_func=fast_steiner_tree, astar_heuristic=False):
+    def __init__(self, graph, terminals, epsilon=3.0, steiner_func=fast_steiner_tree, astar_heuristic=False):
         # type: (nx.Graph, Dict[Any, List[Any]], Optional[float], Optional[Callable]) -> None
         self.result = dict()
         self.weights_graph = nx.DiGraph(graph)
@@ -163,7 +163,7 @@ class MinMaxRouter(object):
             usage = data["usage"] / data["capacity"]
             exp_factor = bounded_exp(max(0, self.epsilon * usage))
             for _,_,edata in self.weights_graph.in_edges(node, data=True):
-                edata["weight"] *= exp_factor
+                edata["weight"] = exp_factor
 
     def run(self, effort=100):
         # type: (Optional[int]) -> None

@@ -31,7 +31,6 @@ class Tactic(object):
 
 
     def __init__(self, placement):
-        #note: called once, at initialization
         self._placement = placement
 
     def run(self):
