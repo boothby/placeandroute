@@ -12,9 +12,9 @@ from placeandroute.routing.bonnheuristic import MinMaxRouter, bounded_exp, fast_
 try:
     import placeandroutecpp
     MinMaxRouter = placeandroutecpp.MinMaxRouter
-except ImportError:
-    pass
-
+    logging.info("loaded placeandroutecpp router")
+except ImportError as e:
+    logging.info("no cpp version, using pure python: {}", e)
 # from .heuristic import TilePlacementHeuristic, Constraint
 
 class TacticFactory(object):
@@ -338,7 +338,7 @@ class RerouteTactic(Tactic):
         p = self._placement
         effort = self.effort
         placement = p.var_placement()
-        p.chains = self.router.run(placement, epsilon=p.coeff / effort, effort=effort)
+        p.chains = self.router.run(placement, epsilon=float(p.coeff) / effort, effort=effort)
         p.fix_usage()
 
     def run(self):
@@ -357,7 +357,7 @@ class IncrementalRerouteTactic(RerouteTactic):
         placement = p.var_placement()
         for k, vs in iteritems(p.chains):
             placement[k] = set(placement[k]).union(vs)
-        p.chains = self.router.run(placement, p.coeff / effort, effort)
+        p.chains = self.router.run(placement, float(p.coeff) / effort, effort)
         p.fix_usage()
 
 

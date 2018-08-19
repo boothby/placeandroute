@@ -155,7 +155,7 @@ class MinMaxRouter(object):
         for node in nodes:
             data = self.weights_graph.nodes[node]
             data["usage"] += 1
-            usage = data["usage"] / data["capacity"]
+            usage = float(data["usage"]) / data["capacity"]
             exp_factor = bounded_exp(max(0, self.epsilon * usage))
             for _,_,edata in self.weights_graph.in_edges(node, data=True):
                 edata["weight"] = exp_factor
@@ -250,7 +250,7 @@ class MinMaxRouter(object):
                 ret[resource] = c
                 newscore = calcscore(ret)
                 if newscore < score \
-                        or rand.random() < 0.1 * score / (newscore * (temp + 1)):  # todo: test simpler strategies here
+                        or rand.random() < 0.1 * float(score) / (newscore * (temp + 1)):  # todo: test simpler strategies here
                     score = newscore
                 else:
                     ret[resource] = oldc
