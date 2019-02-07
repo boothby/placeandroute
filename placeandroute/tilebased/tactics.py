@@ -13,8 +13,8 @@ try:
     import placeandroutecpp
     MinMaxRouter = placeandroutecpp.MinMaxRouter
     logging.info("loaded placeandroutecpp router")
-except ImportError as e:
-    logging.info("no cpp version, using pure python: {}", e)
+except ModuleNotFoundError as e:
+    logging.info("no cpp version, using pure python: %r", e)
 # from .heuristic import TilePlacementHeuristic, Constraint
 
 class TacticFactory(object):
@@ -251,7 +251,7 @@ class CostPickTactic(Tactic):
                 worstc = constr
                 worstcost = cost
         if worstc is None:
-            worstc = random.choice(p.constraint_placement.keys())
+            worstc = random.choice(list(p.constraint_placement.keys()))
         self.rip_tabu.append(worstc)
         if len(self.rip_tabu) > self.tabu_size:
             self.rip_tabu.pop(0)

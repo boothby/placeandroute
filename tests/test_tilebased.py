@@ -11,7 +11,7 @@ import networkx as nx
 from six import iteritems, print_
 
 from placeandroute.problemgraph import parse_cnf
-from placeandroute.tilebased.chimera_tiles import chimeratiles, expand_solution, chimeratiles2, expand_solution2
+from placeandroute.tilebased.chimera_tiles import load_chimera, expand_solution
 from placeandroute.tilebased.heuristic import TilePlacementHeuristic, Constraint
 from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
 from placeandroute.tilebased.utils import cnf_to_constraints, show_result
@@ -44,10 +44,10 @@ class TestTileBased(TestCase):
     def test2(self):
         cs = [Constraint([[1, 2, 3], [4, 5]]), Constraint([[2, 3, 4], [5, 6]])]
         s = 3
-        g, chs = chimeratiles(s, s)
+        chs, g, orig = load_chimera(s)
         h = TilePlacementHeuristic(cs, g, chs)
         h.run()
-        xdict = expand_solution(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution(g, h.chains, orig)
         show_result(s, xdict)
 
     def test3(self):
@@ -56,14 +56,14 @@ class TestTileBased(TestCase):
         cnf = [mapl(lambda x: x // 2, clause) for clause in cnf[:130]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
-        g, chs = chimeratiles(s, s)
+        chs, g, orig = load_chimera(s)
         h = TilePlacementHeuristic(cs, g, chs)
         print_(h.run(stop_first=True))
         for c, t in iteritems(h.constraint_placement):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution(g, h.chains, orig)
         show_result(s, xdict)
 
     def test4(self):
@@ -72,14 +72,14 @@ class TestTileBased(TestCase):
         cnf = [mapl(lambda x: x // 6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 8
-        g, chs = chimeratiles(s, s)
+        chs, g, orig = load_chimera(s)
         h = TilePlacementHeuristic(cs, g, chs)
         print_(h.run(stop_first=True))
         for c, t in iteritems(h.constraint_placement):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution(g, h.chains, orig)
         show_result(s, xdict)
 
     def test_par(self):
@@ -88,7 +88,7 @@ class TestTileBased(TestCase):
         cnf = [mapl(lambda x: x // 6, clause) for clause in cnf[:50]]
         cs = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
         s = 16
-        g, chs = chimeratiles2(s, s)
+        chs, g, orig = load_chimera(s)
         h = ParallelPlacementHeuristic(cs, g, chs)
         pool = Pool()
         print_(h.par_run(pool, stop_first=False))
@@ -96,5 +96,5 @@ class TestTileBased(TestCase):
             print_(c.tile, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
-        xdict = expand_solution2(g, h.chains, dwnx.chimera_graph(s))
+        xdict = expand_solution(g, h.chains, orig)
         show_result(s, xdict)
