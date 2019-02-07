@@ -82,7 +82,7 @@ def alternative_chains(cg, tile_graph, count, old, node_to_tile):
 
             # add qubits until they are properly connected
             # (added qubits must have the same degree of the old qubit, otherwise we miss connecting qubits)
-            while not all(checkEqualIvo(map(testsubg.degree,node_to_tile[x])) for x in new_nodes):
+            while not all(checkEqualIvo(list(map(testsubg.degree,node_to_tile[x]))) for x in new_nodes):
                 newnew = set()
                 for n in iter(new_nodes):
                     for x in tile_graph.neighbors(node_to_tile[n]):
