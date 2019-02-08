@@ -42,7 +42,7 @@ def read_blif(f, db, map_constraint):
 
         gate_data = db[gate_name]
 
-        constr, ancilla_accum = chimera_map_constraint(pins, gate_data, ancilla_accum)
+        constr, ancilla_accum = map_constraint(pins, gate_data, ancilla_accum)
         ret.append(constr)
 
     return ret
