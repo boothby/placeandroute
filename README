@@ -3,7 +3,7 @@ placeandroute: an heuristic placement-and-routing utility for graph embedding
 
 Requirements
 ------------
-Python 2.7 (pypy suggested), networkx, dwave-networkx libraries, matplotlib for drawing
+Python (pypy suggested), networkx, dwave-networkx libraries, matplotlib for drawing
 
 Usage
 -----

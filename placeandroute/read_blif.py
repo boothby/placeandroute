@@ -19,18 +19,19 @@ def chimera_map_constraint(pins, gate_data, ancilla_accum):
     ow = {}
 
     retg = [[], []]
-    for pin, pos in zip(pins_names, gate_data["vP"][0][0]):
+    for pin, pos in zip(pins_names, gate_data["vP"][0]):
         pin = pin[0]
-        assert isinstance(pin, int), ("error parsing genlib", pin)
+        pos = pos[0]
+        assert isinstance(pos, int), ("error parsing genlib", pin)
         retg[posmap[pos]].append(pins[pin])
-        ow[pos] = pin
+        ow[pos] = pins[pin]
         del posmap[pos]
 
     #leftover posmap are ancilla
-    for to in posmap.values():
+    for apos,to in posmap.items():
         ancilla_name = "anc_" + str(ancilla_accum)
-        retg[to] = ancilla_name
-        ow[to] = ancilla_name
+        retg[to].append(ancilla_name)
+        ow[apos] = ancilla_name
         ancilla_accum += 1
 
     for pos in range(1, dim*2+1):
@@ -51,8 +52,8 @@ def read_blif(f):
     return ret
 
 def blif_to_constraints(blif, db, map_constraint):
-    # type: (List[Tuple[str, Dict]], Dict, Callable) -> [Constraint]
-    ret = []
+    # type: (List[Tuple[str, Dict]], Dict, Callable) -> List[Constraint]
+    ret = [] #type: List[Constraint]
     ancilla_accum = 1
     for gate_name, pins in blif:
 
@@ -61,5 +62,6 @@ def blif_to_constraints(blif, db, map_constraint):
         constr, wires, ancilla_accum = map_constraint(pins, gate_data, ancilla_accum)
         constr.wires = wires
         ret.append(constr)
+
 
     return ret
