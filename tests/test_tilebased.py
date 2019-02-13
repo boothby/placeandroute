@@ -1,4 +1,7 @@
 import logging
+
+from tests.utils import parse_2in4
+
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s %(asctime)s %(processName)s %(message)s')
 
 from itertools import product
@@ -98,3 +101,22 @@ class TestTileBased(TestCase):
         test_result(g, cs, h)
         xdict = expand_solution(g, h.chains, orig)
         show_result(s, xdict)
+
+    def test_sgen(self):
+        with open(dirname(__file__) + "/../../pysgen/allbenchmarks/sgen-twoinfour-s92-g4-0.bench") as f:
+            cnf = (parse_2in4(f))
+        nvars = max(max(x) for clause in cnf for x in clause)
+        ancilla = nvars + 1
+        for clause in cnf:
+            clause[0].append(ancilla)
+            clause[1].append(ancilla + 1)
+            ancilla += 2
+        cs = [Constraint(x) for x in cnf]
+
+        choices, quotient_graph, original_graph = load_chimera(16)
+        #quotient_graph, choices = g, chs
+        pool = Pool()
+        h = ParallelPlacementHeuristic(cs, quotient_graph, choices)
+        print (h.par_run(pool, stop_first=False))
+        print (expand_solution(quotient_graph, h.chains, original_graph))
+

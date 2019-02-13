@@ -97,7 +97,7 @@ class TilePlacementHeuristic(object):
 
     def clear_best(self):
         self._best_score = None
-        self._best_plc = (None, None)
+        self._best_plc = ({}, {})
 
     def save_best(self):
         score = self.score()
