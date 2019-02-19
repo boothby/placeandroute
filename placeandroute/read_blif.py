@@ -1,3 +1,6 @@
+from dwave_networkx import chimera_graph
+from placeandroute.tilebased.chimera_tiles import chimera_tiles
+
 from .tilebased.heuristic import Constraint
 from typing import TextIO, Dict, Callable
 import re
@@ -39,6 +42,19 @@ def chimera_map_constraint(pins, gate_data, ancilla_accum):
 
 
     return Constraint(retg), ordered_wires, ancilla_accum
+
+def chimera_map_constraint2(pins, gate_data, ancilla_accum):
+    pin_labels = ["O", "I0", "I1", "I2", "I3", "I4", "I5", "I6"]
+    reference_graph = chimera_tiles(1)
+    posmap = {node: i for i, nodeset in enumerate(reference_graph.nodes())
+                                for node in nodeset}
+    retg = [[], []]
+
+    for pin_name, wire_name in pins:
+        pos_name = "pos"
+
+    ordered_wires = [pins[pin_name] for pin_name in pin_labels]
+    return Constraint(), ordered_wires, ancilla_accum
 
 def read_blif(f):
     # type: (TextIO) -> List[Tuple[str, Dict]]

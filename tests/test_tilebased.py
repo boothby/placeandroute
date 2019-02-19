@@ -103,7 +103,7 @@ class TestTileBased(TestCase):
         show_result(s, xdict)
 
     def test_sgen(self):
-        with open(dirname(__file__) + "/../../pysgen/allbenchmarks/sgen-twoinfour-s92-g4-0.bench") as f:
+        with open(dirname(__file__) + "/../../pysgen/allbenchmarks/sgen-twoinfour-s80-g4-0.bench") as f:
             cnf = (parse_2in4(f))
         nvars = max(max(x) for clause in cnf for x in clause)
         ancilla = nvars + 1
@@ -117,6 +117,6 @@ class TestTileBased(TestCase):
         #quotient_graph, choices = g, chs
         pool = Pool()
         h = ParallelPlacementHeuristic(cs, quotient_graph, choices)
-        print (h.par_run(pool, stop_first=False))
+        print (h.par_run(pool, stop_first=True))
         print (expand_solution(quotient_graph, h.chains, original_graph))
 
