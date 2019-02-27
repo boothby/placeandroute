@@ -1,5 +1,9 @@
 from setuptools import setup
 
+with open("README", "r") as fh:
+    long_description = fh.read()
+
+
 setup(
     name='placeandroute',
     version='0.0.0',
@@ -9,9 +13,16 @@ setup(
                       'dwave-networkx>=0.6.3,<0.7.0',
                       'six>=1.11.0,<2.0.0'
                       ],
-    url='https://bitbucket.org/StefanoVt/placeandroute/src/master/',
+    url='https://bitbucket.org/StefanoVt/placeandroute/',
     license='MIT',
     author='Stefano Varotti',
     author_email='stefano.varotti@unitn.it',
-    description=''
+    description='graph placement and routing library',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    classifiers = [
+                  "Programming Language :: Python :: 3",
+                  "License :: OSI Approved :: MIT License",
+                  "Operating System :: OS Independent",
+              ],
 )

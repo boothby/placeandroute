@@ -1,9 +1,8 @@
-from dwave_networkx import chimera_graph
-from placeandroute.tilebased.chimera_tiles import chimera_tiles
-
-from .tilebased.heuristic import Constraint
-from typing import TextIO, Dict, Callable
 import re
+from typing import TextIO, Dict, Callable
+
+from placeandroute.tilebased.chimera_tiles import chimera_tiles
+from .tilebased.heuristic import Constraint
 
 blif_gate = re.compile(r'.gate (\w+) (.+)')
 blif_pins = re.compile(r'(\w+)=(\w+)')
