@@ -100,7 +100,7 @@ class TestTileBased(TestCase):
         print_(repr(h.chains))
         test_result(g, cs, h)
         xdict = expand_solution(g, h.chains, orig)
-        show_result(s, xdict)
+        show_result(orig, xdict)
 
     def test_sgen(self):
         with open(dirname(__file__) + "/../../pysgen/allbenchmarks/sgen-twoinfour-s80-g4-0.bench") as f:

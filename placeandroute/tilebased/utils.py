@@ -24,9 +24,8 @@ def cnf_to_constraints(clauses, num_vars):
         ancilla += 1
 
 
-def show_result(s, xdict):
+def show_result(cg, xdict, layout=dwnx.chimera_graph):
     """Display a Chimera embedding using matplotlib"""
-    cg, layout = create(s)
 
     color = cycle(get_cmap("tab20").colors)
     nx.draw(cg, layout, node_color="gray", edge_color="gray")

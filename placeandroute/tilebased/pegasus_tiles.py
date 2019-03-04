@@ -25,7 +25,7 @@ def pegasus_tiles(m, _):
                     g.node[n1]["usage"] = 0
                     relabeling[n1] = frozenset([n1,n2])
     nx.relabel_nodes(g, relabeling, copy=False)
-    return g, reduce(list.__add__,([(n1,n2), (n2,n1)] for n1,n2 in g.edges() if not next(iter(n1))[:-1] == next(iter(n2))[:-1]))
+    return g, reduce(list.__add__,([(n1,n2), (n2,n1)] for n1,n2 in g.edges() if not next(iter(n1))[0] == next(iter(n2))[0]))
 
 def load_pegasus(tsize):
     g, chs = pegasus_tiles(tsize, tsize)

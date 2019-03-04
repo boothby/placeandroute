@@ -27,7 +27,7 @@ class Constraint(object):
     def __hash__(self):
         return hash(self.tile)
 
-default_init_tactics = [BFSInitTactic.default(), RandomInitTactic.default()] * 2 + [RandomInitTactic.default()] * 1
+default_init_tactics = [BFSInitTactic.default(), RandomInitTactic.default()] * 4 # + [RandomInitTactic.default()] * 1
 default_improve_tactics = [RipRerouteTactic.repeated(), RerouteTactic.default()] * 50
 
 class TilePlacementHeuristic(object):

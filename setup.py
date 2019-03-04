@@ -11,8 +11,9 @@ setup(
               'placeandroute.tilebased'],
     install_requires=['networkx>=2.0,<3.0',
                       'dwave-networkx>=0.6.3,<0.7.0',
-                      'six>=1.11.0,<2.0.0'
+                      'six>=1.11.0,<2.0.0',
                       ],
+    extras_requires= {"cpp": "placeandroutecpp"},
     url='https://bitbucket.org/StefanoVt/placeandroute/',
     license='MIT',
     author='Stefano Varotti',
@@ -25,4 +26,5 @@ setup(
                   "License :: OSI Approved :: MIT License",
                   "Operating System :: OS Independent",
               ],
+
 )
