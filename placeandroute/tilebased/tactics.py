@@ -99,8 +99,8 @@ class RandomInitTactic(Tactic):
     def __str__(self):
         return "[random initialization]"
 
-    def constraint_fit(self, choice, constraint):
-        for (node, req) in zip(choice, constraint.tile):
+    def constraint_fit(self, choice, tile, constraint):
+        for (node, req) in zip(choice, tile):
             data = self._placement.arch.nodes[node]
 
             if (data['capacity'] - data["usage"]) < len(req):
@@ -113,11 +113,12 @@ class RandomInitTactic(Tactic):
         choices = p.choices
         # insert_tactic = InsertTactic(p, IncrementalRerouteTactic)
         for constraint in p.constraints:
-            possible_choices = [x for x in choices if self.constraint_fit(x, constraint)]
+            tile = constraint.random_placement
+            possible_choices = [x for x in choices if self.constraint_fit(x, tile, constraint)]
             if not possible_choices:
                 possible_choices = choices
             position = random.choice(possible_choices)
-            p.constraint_placement[constraint] = position
+            p.constraint_placement[constraint] = (tile, position)
         final_reroute = RerouteTactic(p)
         final_reroute.do_routing()
 
@@ -136,8 +137,9 @@ class BFSInitTactic(Tactic):
         cg = nx.Graph()
         vartoconst = defaultdict(list)
         for constraint in p.constraints:
+            tile = constraint.random_placement
             cg.add_node(constraint)
-            for vset in constraint.tile:
+            for vset in tile:
                 for v in vset:
                     vartoconst[v].append(constraint)
 
@@ -158,17 +160,17 @@ class BFSInitTactic(Tactic):
         # "central" tile in arch graph
         arch_centrality = nx.betweenness_centrality(p.arch)
         starttile = max(p.choices, key=lambda xy: arch_centrality[xy[0]] + arch_centrality[xy[1]])
-        insert_tactic.insert_tile(start, starttile)
+        insert_tactic.insert_tile(start, start.random_placement, starttile)
 
         for _, constraint in nx.bfs_edges(cg, start):
             # insert new constraint in best place
-            best = best_place.find_best_place(constraint)
-            insert_tactic.insert_tile(constraint, best)
+            bestpl, best = best_place.find_best_place(constraint)
+            insert_tactic.insert_tile(constraint, bestpl, best)
             # rip and reroute the worst constraint
             worst = pick_t.pick_worst()
             remove_tactic.remove_tile(worst)
-            best2 = best_place.find_best_place(worst)
-            insert_tactic.insert_tile(worst, best2)
+            bestpl2, best2 = best_place.find_best_place(worst)
+            insert_tactic.insert_tile(worst, bestpl2, best2)
 
         return True
 
@@ -181,11 +183,11 @@ class RipTactic(Tactic):
     def remove_tile(self, constr, clean_chains=True):
         # remove a constraint from the current embedding.
         place_obj = self._placement
-        old = self._placement.constraint_placement[constr]
+        oldtile, old = self._placement.constraint_placement[constr]
         del self._placement.constraint_placement[constr]
         if clean_chains:
             var_placement = place_obj.var_placement()
-            for var_row, node in zip(constr.tile, old):
+            for var_row, node in zip(oldtile, old):
                 for var in var_row:
                     if var not in place_obj.chains or node not in place_obj.chains[var]:
                         continue  # should be hit only when var has been deleted from the previous row
@@ -244,9 +246,9 @@ class CostPickTactic(Tactic):
         costs = p.scores()
         worstc = None
         worstcost = 0
-        for constr in p.constraint_placement:
+        for constr, (tile_placement, _) in p.constraint_placement.items():
             if constr in self.rip_tabu: continue
-            cost = sum(sum(sum(costs[node] for node in p.chains[var]) for var in var_row) for var_row in constr.tile)
+            cost = sum(sum(sum(costs[node] for node in p.chains[var]) for var in var_row) for var_row in tile_placement)
             if worstc is None or cost > worstcost:
                 worstc = constr
                 worstcost = cost
@@ -283,40 +285,41 @@ class ChainsFindTactic(Tactic):
 
         set_weights(wgraph.nodes)
 
-        # For each arch node calc a score
-        scores = []
-
-        for vset in constraint.tile:
-            score = defaultdict(float)
-            for v in vset:
-                if v not in placement: continue
-                ephnode = ("ephemeral", v)
-                wgraph.add_edges_from([(ephnode, chain_node) for chain_node in placement[v]], weight=0)
-                lengths = nx.single_source_dijkstra_path_length(wgraph, ephnode)
-                for n, length in iteritems(lengths):
-                    score[n] += length
-                wgraph.remove_node(ephnode)
-            scores.append(score)
-
         best_score = 0
         best_choice = None
-        mapsto = defaultdict(set)
-        for k, vs in iteritems(placement):
-            for v in vs:
-                mapsto[v].add(k)
+        for tile_placement in constraint.placements:
+            # For each arch node calc a score
+            scores = []
+            for vset in tile_placement:
+                score = defaultdict(float)
+                for v in vset:
+                    if v not in placement: continue
+                    ephnode = ("ephemeral", v)
+                    wgraph.add_edges_from([(ephnode, chain_node) for chain_node in placement[v]], weight=0)
+                    lengths = nx.single_source_dijkstra_path_length(wgraph, ephnode)
+                    for n, length in iteritems(lengths):
+                        score[n] += length
+                    wgraph.remove_node(ephnode)
+                scores.append(score)
 
-        for choice in parent.choices:
-            # variables mapped to this choice that are unrelated to this constraints
-            unrelated = [mapsto[target].difference(varrow) for varrow, target in zip(constraint.tile, choice)]
-            unrel_score = sum(
-                bounded_exp(scaling_factor * max(0, len(unrel_nodes) - wgraph.nodes[target]["capacity"])) - 1
-                for unrel_nodes, target in zip(unrelated, choice))
 
-            score = scores[0][choice[0]] + scores[1][choice[1]] + unrel_score
+            mapsto = defaultdict(set)
+            for k, vs in iteritems(placement):
+                for v in vs:
+                    mapsto[v].add(k)
 
-            if best_choice is None or score < best_score:
-                best_choice = choice
-                best_score = score
+            for choice in parent.choices:
+                # variables mapped to this choice that are unrelated to this constraints
+                unrelated = [mapsto[target].difference(varrow) for varrow, target in zip(tile_placement, choice)]
+                unrel_score = sum(
+                    bounded_exp(scaling_factor * max(0, len(unrel_nodes) - wgraph.nodes[target]["capacity"])) - 1
+                                                                for unrel_nodes, target in zip(unrelated, choice))
+
+                score = scores[0][choice[0]] + scores[1][choice[1]] + unrel_score
+
+                if best_choice is None or score < best_score:
+                    best_choice = (tile_placement, choice)
+                    best_score = score
         return best_choice
 
 
@@ -379,10 +382,10 @@ class InsertTactic(Tactic):
         Tactic.__init__(self, placement)
         self._routing_tactic = routingTactic.create(placement)
 
-    def insert_tile(self, constraint, tile):
-        # type: (Constraint, List[List[Any]]) -> None
+    def insert_tile(self, constraint, chosen_placement, tile):
+        # type: (Constraint, List[List[Any]],List[List[Any]]) -> None
         p = self._placement
-        p.constraint_placement[constraint] = tile
+        p.constraint_placement[constraint] = (chosen_placement,tile)
         self._routing_tactic.do_routing()
 
 
@@ -409,8 +412,8 @@ class RipRerouteTactic(Tactic):
     def run(self):
         remove_choice = self.pick_worst()
         self.remove_tile(remove_choice)
-        best_place = self.find_best_place(remove_choice)
-        self.insert_tile(remove_choice, best_place)
+        best_tile, best_place = self.find_best_place(remove_choice)
+        self.insert_tile(remove_choice, best_tile, best_place)
 
     def pick_worst(self):
         return self._pick.pick_worst()
@@ -421,5 +424,5 @@ class RipRerouteTactic(Tactic):
     def find_best_place(self, choice):
         return self._find.find_best_place(choice)
 
-    def insert_tile(self, constr, place):
-        self._insert.insert_tile(constr, place)
+    def insert_tile(self, constr, tile, place):
+        self._insert.insert_tile(constr, tile, place)

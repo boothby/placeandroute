@@ -1,8 +1,7 @@
 import logging
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s %(asctime)s %(processName)s %(message)s')
 
 from tests.utils import parse_2in4
-
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s %(asctime)s %(processName)s %(message)s')
 
 from itertools import product
 from multiprocessing import Pool
@@ -26,7 +25,7 @@ def test_result(tile_graph, cnf, heur):
     chains = heur.chains
     for constraint in cnf:
         assert constraint in heur.constraint_placement, heur.constraint_placement
-        var_rows = constraint.tile
+        var_rows, mapped_to = heur.constraint_placement[constraint]
         for v1, v2 in product(*var_rows):
             if v1 == v2: continue
             ch1 = chains[v1]
@@ -34,7 +33,7 @@ def test_result(tile_graph, cnf, heur):
             assert nx.is_connected(tile_graph.subgraph(ch1))
             assert nx.is_connected(tile_graph.subgraph(ch2))
             assert any(tile_graph.has_edge(n1, n2) for n1, n2 in product(ch1, ch2)), \
-                (v1, v2, constraint, heur.constraint_placement[constraint], ch1, ch2)
+                (v1, v2, constraint, mapped_to, ch1, ch2)
 
 
 
@@ -63,11 +62,11 @@ class TestTileBased(TestCase):
         h = TilePlacementHeuristic(cs, g, chs)
         print_(h.run(stop_first=True))
         for c, t in iteritems(h.constraint_placement):
-            print_(c.tile, t)
+            print_(c, t)
         print_(repr(h.chains))
         test_result(g, cs, h)
         xdict = expand_solution(g, h.chains, orig)
-        show_result(s, xdict)
+        show_result(orig, xdict)
 
     def test4(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:

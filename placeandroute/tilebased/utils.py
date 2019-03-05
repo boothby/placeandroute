@@ -7,7 +7,7 @@ from matplotlib.cm import get_cmap
 from six import iteritems
 
 from placeandroute.tilebased.heuristic import Constraint
-
+from itertools import combinations
 
 def create(w):
     ret = dwnx.chimera_graph(w, w)
@@ -19,14 +19,19 @@ def cnf_to_constraints(clauses, num_vars):
     ancilla = num_vars + 1
     for clause in clauses:
         #                 first two vars        third var + ancilla
-        clause = list(clause)
-        yield Constraint([list(map(abs, clause[:2])), [abs(clause[2]), ancilla]])
+        clause = list(abs(l) for l in clause)
+        assert len(clause) == 3, clause
+        c  = Constraint()
+        for literal in clause:
+            c.add_possible_placement([[ancilla, literal],[l for l in clause if l != literal]])
+        yield c
         ancilla += 1
 
 
-def show_result(cg, xdict, layout=dwnx.chimera_graph):
+def show_result(cg, xdict, layout=dwnx.chimera_layout):
     """Display a Chimera embedding using matplotlib"""
 
+    layout = layout(cg)
     color = cycle(get_cmap("tab20").colors)
     nx.draw(cg, layout, node_color="gray", edge_color="gray")
     for k, vs in iteritems(xdict):

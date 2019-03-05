@@ -7,25 +7,41 @@ from typing import List, Any, Dict
 from placeandroute.tilebased.tactics import RandomInitTactic, BFSInitTactic, RipRerouteTactic, RerouteTactic
 from ..routing.bonnheuristic import bounded_exp
 import logging
+import random
 
 
 class Constraint(object):
     """Class representing a constraint, essentially just a container for the variable mapping.
     """
 
-    def __init__(self, vars):
+    def __init__(self, placement=None):
         # type: (List[List[Any]]) -> None
         """Initializes the variable mapping.
         Currently the variable mapping is represented as a list of list of variables. Each inner list represents a set
         of variables that can be placed in any order. Considering Chimera, the mapping consists in two lists, each
         list containing the variables that go in a 4 qubit row. Todo: add multiple alternative mappings"""
-        self.tile = tuple(tuple(varrow) for varrow in vars)
+        if placement:
+            placements = [tuple(tuple(varrow) for varrow in placement)]
+        else:
+            placements = []
+
+        self.placements = set(placements)
+
+    def add_possible_placement(self, placement):
+        """Add multiple possible placements"""
+        converted = tuple(tuple(varrow) for varrow in placement)
+        self.placements.add(converted)
 
     def __eq__(self, other):
-        return self.tile == other.tile
+        return self.placements == other.placements
 
     def __hash__(self):
-        return hash(self.tile)
+        return hash(frozenset(self.placements))
+
+    @property
+    def random_placement(self):
+        """add a random placement"""
+        return random.sample(self.placements, 1)[0]
 
 default_init_tactics = [BFSInitTactic.default(), RandomInitTactic.default()] * 4 # + [RandomInitTactic.default()] * 1
 default_improve_tactics = [RipRerouteTactic.repeated(), RerouteTactic.default()] * 50
@@ -132,8 +148,8 @@ class TilePlacementHeuristic(object):
         # type: () -> Dict[Any,List[Any]]
         """Return variable placement (from constraint placement)"""
         placement = dict()
-        for constraint, tile in iteritems(self.constraint_placement):
-            for pnodes, anode in zip(constraint.tile, tile):
+        for constraint, (selected_placement, tile) in iteritems(self.constraint_placement):
+            for pnodes, anode in zip(selected_placement, tile):
                 for pnode in pnodes:
                     if pnode not in placement:
                         placement[pnode] = []
