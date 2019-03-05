@@ -104,18 +104,22 @@ class TestTileBased(TestCase):
     def test_sgen(self):
         with open(dirname(__file__) + "/../../pysgen/allbenchmarks/sgen-twoinfour-s80-g4-0.bench") as f:
             cnf = (parse_2in4(f))
-        nvars = max(max(x) for clause in cnf for x in clause)
+        nvars = max(max(clause) for clause in cnf)
         ancilla = nvars + 1
+        cs = []
         for clause in cnf:
-            clause[0].append(ancilla)
-            clause[1].append(ancilla + 1)
+            c = Constraint()
+            first, rest = clause[0], clause[1:]
+            for second in rest:
+                c.add_possible_placement([[ancilla, first, second],[ancilla+1]+[x for x in rest if x != second]])
             ancilla += 2
-        cs = [Constraint(x) for x in cnf]
+            cs.append(c)
 
         choices, quotient_graph, original_graph = load_chimera(16)
         #quotient_graph, choices = g, chs
         pool = Pool()
         h = ParallelPlacementHeuristic(cs, quotient_graph, choices)
         print (h.par_run(pool, stop_first=True))
-        print (expand_solution(quotient_graph, h.chains, original_graph))
+        xdict =  (expand_solution(quotient_graph, h.chains, original_graph))
+        show_result(original_graph, xdict)
 
