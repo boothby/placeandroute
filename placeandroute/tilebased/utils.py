@@ -7,7 +7,7 @@ from matplotlib.cm import get_cmap
 from six import iteritems
 
 from placeandroute.tilebased.heuristic import Constraint
-from itertools import combinations
+
 
 def create(w):
     ret = dwnx.chimera_graph(w, w)

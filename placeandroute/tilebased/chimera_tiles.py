@@ -9,7 +9,7 @@ import dwave_networkx as dwnx
 
 def chimera_tiles(w, h=None):
     if h is None: h = w
-    hwg = dwnx.chimera_graph(w,h)  # type: nx.Graph
+    hwg = dwnx.chimera_graph(w,n=h)  # type: nx.Graph
     quotient_graph, quotient_mapping, qubit_mapping = get_chimera_quotient_graph(hwg)
 
     choices = []

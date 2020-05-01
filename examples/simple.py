@@ -3,7 +3,7 @@ from os.path import dirname
 from six import iteritems, print_
 
 from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
-from placeandroute.tilebased.chimera_tiles import chimeratiles2 as chimeratiles, expand_solution2 as expand_solution
+from placeandroute.tilebased.chimera_tiles import chimera_tiles as chimeratiles, expand_solution as expand_solution
 import logging
 from placeandroute.problemgraph import parse_cnf
 from multiprocessing import Pool
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     #open 3-sat problem file
     with open(dirname(__file__) + "/../simple60.cnf") as f:
         cnf = (parse_cnf(f))
-    cnf = [map(lambda x: x // 2, clause) for clause in cnf[:130]] #half vars, original is too big
+    cnf = [list(map(lambda x: x // 2, clause)) for clause in cnf[:130]] #half vars, original is too big
 
     #prepare constraints
     constraints = list(cnf_to_constraints(cnf, max(max(x) for x in cnf)))
@@ -46,6 +46,8 @@ if __name__ == '__main__':
 
         print_(repr(chains))
 
-        show_result(chimera_size, chains)
+        from matplotlib import pyplot as plt
+        dwnx.draw_chimera_embedding(dwnx.chimera_graph(chimera_size), chains, node_size=50)
+        plt.savefig('result.png')
     else:
         print_("Failure")

@@ -150,9 +150,9 @@ def solve_channel(channel_graph, quotient_embedding, num_tracks, working_tracks,
     count = 0
     for u, quotient_chain in iteritems(quotient_embedding):
         quotient_channel_graph = nx.subgraph(channel_graph, quotient_chain)
-        components = nx.connected_component_subgraphs(quotient_channel_graph)
+        components = nx.connected_components(quotient_channel_graph)
         for c in components:
-            component_embedding[count] = c
+            component_embedding[count] = quotient_channel_graph.subgraph(c)
             component_var[count] = u
             count += 1
 
