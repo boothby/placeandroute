@@ -38,11 +38,6 @@ def test_result(tile_graph, cnf, heur):
 
 
 class TestTileBased(TestCase):
-
-    def test1(self):
-        h = TilePlacementHeuristic([], nx.Graph(), [])
-        h.run()
-
     def test2(self):
         cs = [Constraint([[1, 2, 3], [4, 5]]), Constraint([[2, 3, 4], [5, 6]])]
         s = 3
@@ -50,7 +45,7 @@ class TestTileBased(TestCase):
         h = TilePlacementHeuristic(cs, g, chs)
         h.run()
         xdict = expand_solution(g, h.chains, orig)
-        show_result(s, xdict)
+        #show_result(s, xdict)
 
     def test3(self):
         with open(dirname(__file__) + "/../simple60.cnf") as f:

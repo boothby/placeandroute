@@ -2,6 +2,7 @@ import random
 from collections import Counter
 from functools import reduce
 import logging
+from itertools import permutations
 from typing import Set, Dict
 
 import networkx as nx
@@ -25,7 +26,30 @@ def pegasus_tiles(m, _):
                     g.node[n1]["usage"] = 0
                     relabeling[n1] = frozenset([n1,n2])
     nx.relabel_nodes(g, relabeling, copy=False)
-    return g, reduce(list.__add__,([(n1,n2), (n2,n1)] for n1,n2 in g.edges() if not next(iter(n1))[0] == next(iter(n2))[0]))
+    return g, small_choices(g)
+
+
+def small_choices(g):
+    ret = []
+    for n1, n2 in g.edges():
+        if not next(iter(n1))[0] == next(iter(n2))[0]:
+            ret.extend([(n1, n2), (n2, n1)])
+    return ret
+
+def big_choices(g):
+    ret = []
+    for firstnode in g.nodes():
+        for restnodes in permutations(g.neighbors(firstnode), 2):
+            candidate = (firstnode,) + tuple(restnodes)
+            for lastnode in g.neighbors(restnodes[0]):
+                if lastnode == firstnode:
+                    continue
+                candidate += tuple(lastnode)
+                if g.subgraph(candidate).number_of_edges() == 4:
+                    ret.append(candidate)
+    return ret
+
+
 
 def load_pegasus(tsize):
     g, chs = pegasus_tiles(tsize, tsize)

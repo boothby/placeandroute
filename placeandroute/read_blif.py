@@ -24,7 +24,7 @@ def chimera_map_constraint(pins, gate_data, ancilla_accum):
     for pin, pos in zip(pins_names, gate_data["vP"][0]):
         pin = pin[0]
         pos = pos[0]
-        assert isinstance(pos, int), ("error parsing genlib", pin)
+        assert isinstance(pos, int), ("error parsing genlib", pin, pos)
         retg[posmap[pos]].append(pins[pin])
         ow[pos] = pins[pin]
         del posmap[pos]
