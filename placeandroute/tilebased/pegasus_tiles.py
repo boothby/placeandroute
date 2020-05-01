@@ -72,7 +72,7 @@ def sample_chain(cg, tile_graph):
     for node in nx.dfs_preorder_nodes(tile_graph):
         if not chain_choice:
             node_choice = random.choice([x for x in node_choices(node) if x in cg.nodes])
-            logging.debug("%s", (cg.nodes(), (node)))
+            #logging.debug("%s", (cg.nodes(), (node)))
         else:
             new_choices = []
             for new_node in node_choices(node):
