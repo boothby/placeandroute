@@ -7,7 +7,6 @@ import random
 import itertools
 import math
 import copy
-from six import iteritems
 
 def linear_index_to_chimera(linear_indices, m, n=None, t=None):
     """
@@ -66,7 +65,7 @@ def greedy_list_coloring(adjacency, valid_colors):
 
         # pick vertex v with a minimal number of valid colors
         # TODO: and a maximal number of neighbours
-        (v, v_colors) = min(iteritems(valid_colors), key=lambda x: len(x[1]))
+        (v, v_colors) = min(valid_colors.items(), key=lambda x: len(x[1]))
         if len(v_colors) == 0:
             # coloring failed.
             return None
@@ -148,7 +147,7 @@ def solve_channel(channel_graph, quotient_embedding, num_tracks, working_tracks,
     component_embedding = dict()
     component_var = dict()
     count = 0
-    for u, quotient_chain in iteritems(quotient_embedding):
+    for u, quotient_chain in quotient_embedding.items():
         quotient_channel_graph = nx.subgraph(channel_graph, quotient_chain)
         components = nx.connected_components(quotient_channel_graph)
         for c in components:
@@ -170,7 +169,7 @@ def solve_channel(channel_graph, quotient_embedding, num_tracks, working_tracks,
 
     # generate a list of variables used by each quotient vertex
     quotient_variables = {b: [] for b in working_tracks}
-    for v, quotient_chain in iteritems(component_embedding):
+    for v, quotient_chain in component_embedding.items():
         for b in quotient_chain:
             quotient_variables[b].append(v)
 
@@ -182,11 +181,11 @@ def solve_channel(channel_graph, quotient_embedding, num_tracks, working_tracks,
 
     # write down the missing tracks for each quotient vertex
     missing_tracks = {b: all_tracks.difference(set(qubits)) for b,
-        qubits in iteritems(working_tracks)}
+        qubits in working_tracks.items()}
 
     # compute valid track assignments for each variable
     valid_tracks = {v: copy.deepcopy(all_tracks) for v in component_embedding}
-    for v, quotient_chain in iteritems(component_embedding):
+    for v, quotient_chain in component_embedding.items():
         for b in quotient_chain:
             for t in missing_tracks[b]:
                 valid_tracks[v].discard(t)
@@ -212,7 +211,7 @@ def solve_channel(channel_graph, quotient_embedding, num_tracks, working_tracks,
     component_assignments = greedy_list_coloring(conflict_graph, valid_tracks)
 
     track_assignments = {v: dict() for v in quotient_embedding.keys()}
-    for c, component_chain in iteritems(component_embedding):
+    for c, component_chain in component_embedding.items():
         v = component_var[c]
         t = component_assignments[c]
         track_assignments[v].update({b: t for b in component_chain})
@@ -386,20 +385,20 @@ def detailed_channel_routing(quotient_emb, graph,
 
     # for each quotient graph vertex, write down the variables on it
     quotient_variables = {q: [] for q in quotient_graph}
-    for v, chain in iteritems(quotient_emb):
+    for v, chain in quotient_emb.items():
         for q in chain:
             quotient_variables[q].append(v)
 
     # for each quotient graph vertex, write down the constraints associated with it
     if constraint_quotient_emb:
         quotient_constraints = {q: [] for q in quotient_graph}
-        for constraint, chain in iteritems(constraint_quotient_emb):
+        for constraint, chain in constraint_quotient_emb.items():
             for v in chain:
                 quotient_constraints[v].append(constraint)
 
     # for quotient vertex, write down the channel associated with it:
     quotient_channel = {q: None for q in quotient_graph}
-    for index, channel in iteritems(channels):
+    for index, channel in channels.items():
         for v in channel:
             quotient_channel[v] = index
 
@@ -434,7 +433,7 @@ def detailed_channel_routing(quotient_emb, graph,
     # However, missing couplers make this not true. To partially mitigate
     # this, we solve the channels in a random order.
 
-    # this replaces for index, channel in iteritems(channels):
+    # this replaces for index, channel in channels.items():
     channel_indices = list(channels.keys())
     random.shuffle(channel_indices)
     for index in channel_indices:
@@ -476,7 +475,7 @@ def detailed_channel_routing(quotient_emb, graph,
             # compute the bad track assignments as a result of missing
             # couplers to existing track assignments
             bad_track_assignments = []
-            for index2, channel2 in iteritems(channels):
+            for index2, channel2 in channels.items():
                 if (index2, index) in missing_cross_edges:
                     for v2, v in missing_cross_edges[(index2, index)]:
                         (q2, t2) = quotient_mapping[v2]
@@ -568,6 +567,6 @@ def build_chimera_quotient_embedding(embedding, graph):
 
     _, quotient_mapping, _ = get_chimera_quotient_graph(graph)
     embedding = {x:[quotient_mapping[v][0] for v in chain] for x, chain in
-                  iteritems(embedding)}
+                  embedding.items()}
 
     return embedding

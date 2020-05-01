@@ -1,14 +1,12 @@
 import math
 
 import networkx as nx
-from six import itervalues, iteritems
 from typing import List, Any, Dict
 
 from placeandroute.tilebased.tactics import RandomInitTactic, BFSInitTactic, RipRerouteTactic, RerouteTactic
 from ..routing.bonnheuristic import bounded_exp
 import logging
 import random
-
 
 class Constraint(object):
     """Class representing a constraint, essentially just a container for the variable mapping.
@@ -57,7 +55,9 @@ class TilePlacementHeuristic(object):
         self.constraint_placement = dict()
         self.chains = {}
         self.choices = choices
-        self.coeff = math.log(sum(d["capacity"] for _, d in archGraph.nodes(data=True)))  # high to discourage overlap
+        # high to discourage overlap -- bound below by 2 to avoid log(0) and log(1)
+        coeff = sum(d["capacity"] for _, d in archGraph.nodes(data=True))
+        self.coeff = math.log(max(2, coeff))
         self.clear_best()
 
         # tactic choices
@@ -142,13 +142,13 @@ class TilePlacementHeuristic(object):
                 for n, data in self.arch.nodes(data=True)}
 
     def score(self):
-        return sum(itervalues(self.scores()))
+        return sum(self.scores().values())
 
     def var_placement(self):
         # type: () -> Dict[Any,List[Any]]
         """Return variable placement (from constraint placement)"""
         placement = dict()
-        for constraint, (selected_placement, tile) in iteritems(self.constraint_placement):
+        for constraint, (selected_placement, tile) in self.constraint_placement.items():
             for pnodes, anode in zip(selected_placement, tile):
                 for pnode in pnodes:
                     if pnode not in placement:
@@ -159,6 +159,6 @@ class TilePlacementHeuristic(object):
     def fix_usage(p):
         for node, data in p.arch.nodes(data=True):
             data["usage"] = 0
-        for nodes in itervalues(p.chains):
+        for nodes in p.chains.values():
             for node in nodes:
                 p.arch.nodes[node]["usage"] += 1

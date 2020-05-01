@@ -10,7 +10,6 @@ from unittest import TestCase
 
 import dwave_networkx as dwnx
 import networkx as nx
-from six import iteritems, print_
 
 from placeandroute.problemgraph import parse_cnf
 from placeandroute.tilebased.chimera_tiles import load_chimera, expand_solution
@@ -55,10 +54,10 @@ class TestTileBased(TestCase):
         s = 16
         chs, g, orig = load_chimera(s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print_(h.run(stop_first=True))
-        for c, t in iteritems(h.constraint_placement):
-            print_(c, t)
-        print_(repr(h.chains))
+        #print(h.run(stop_first=True))
+        #for c, t in h.constraint_placement.items():
+        #    print(c.tile, t)
+        #print(repr(h.chains))
         test_result(g, cs, h)
         xdict = expand_solution(g, h.chains, orig)
         show_result(orig, xdict)
@@ -71,10 +70,10 @@ class TestTileBased(TestCase):
         s = 8
         chs, g, orig = load_chimera(s)
         h = TilePlacementHeuristic(cs, g, chs)
-        print_(h.run(stop_first=True))
-        for c, t in iteritems(h.constraint_placement):
-            print_(c.tile, t)
-        print_(repr(h.chains))
+        #print(h.run(stop_first=True))
+        #for c, t in h.constraint_placement.items():
+        #    print(c.tile, t)
+        #print(repr(h.chains))
         test_result(g, cs, h)
         xdict = expand_solution(g, h.chains, orig)
         show_result(s, xdict)
@@ -88,16 +87,16 @@ class TestTileBased(TestCase):
         chs, g, orig = load_chimera(s)
         h = ParallelPlacementHeuristic(cs, g, chs)
         pool = Pool()
-        print_(h.par_run(pool, stop_first=False))
-        for c, t in iteritems(h.constraint_placement):
-            print_(c.tile, t)
-        print_(repr(h.chains))
+        #print(h.par_run(pool, stop_first=False))
+        #for c, t in h.constraint_placement.items():
+            #print(c.tile, t)
+        #print(repr(h.chains))
         test_result(g, cs, h)
         xdict = expand_solution(g, h.chains, orig)
         show_result(orig, xdict)
 
     def test_sgen(self):
-        with open(dirname(__file__) + "/../../pysgen/allbenchmarks/sgen-twoinfour-s80-g4-0.bench") as f:
+        with open(dirname(__file__) + "/../sgen-twoinfour-s80-g4-0.bench") as f:
             cnf = (parse_2in4(f))
         nvars = max(max(clause) for clause in cnf)
         ancilla = nvars + 1
@@ -114,7 +113,7 @@ class TestTileBased(TestCase):
         #quotient_graph, choices = g, chs
         pool = Pool()
         h = ParallelPlacementHeuristic(cs, quotient_graph, choices)
-        print (h.par_run(pool, stop_first=True))
+        #print (h.par_run(pool, stop_first=True))
         xdict =  (expand_solution(quotient_graph, h.chains, original_graph))
         show_result(original_graph, xdict)
 

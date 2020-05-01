@@ -1,7 +1,5 @@
 from os.path import dirname
 
-from six import iteritems, print_
-
 from placeandroute.tilebased.parallel import ParallelPlacementHeuristic
 from placeandroute.tilebased.chimera_tiles import chimera_tiles as chimeratiles, expand_solution as expand_solution
 import logging
@@ -35,19 +33,19 @@ if __name__ == '__main__':
 
     #print results
     if success:
-        print_("Success")
+        print("Success")
         # constraint_placement is a map from constraint to tile
-        for c, t in iteritems(heuristic.constraint_placement):
-            print_(c.tile, t)
+        for c, t in heuristic.constraint_placement.items():
+            print(c.tile, t)
 
-        print_("Expanding chains")
+        print("Expanding chains")
         # heuristic.chains maps from variable to tile, expand to a map variable->qubit
         chains = expand_solution(tile_graph, heuristic.chains, dwnx.chimera_graph(chimera_size))
 
-        print_(repr(chains))
+        print_repr(chains))
 
         from matplotlib import pyplot as plt
         dwnx.draw_chimera_embedding(dwnx.chimera_graph(chimera_size), chains, node_size=50)
         plt.savefig('result.png')
     else:
-        print_("Failure")
+        print("Failure")

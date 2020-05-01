@@ -11,7 +11,6 @@ setup(
               'placeandroute.tilebased'],
     install_requires=['networkx>=2.4,<3.0',
                       'dwave-networkx>=0.8.2',
-                      'six>=1.11.0,<2.0.0',
                       'matplotlib',
                       ],
     extras_requires= {"cpp": "placeandroutecpp"},

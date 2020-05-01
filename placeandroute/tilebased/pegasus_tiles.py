@@ -7,7 +7,6 @@ from typing import Set, Dict
 
 import networkx as nx
 from dwave_networkx import pegasus_graph
-from six import itervalues, iteritems
 
 
 def pegasus_tiles(m, _):
@@ -128,7 +127,7 @@ def calc_score(r):
     count = Counter()
     for v in r.values():
         count.update(v)
-    return sum(itervalues(count)) - len(count), count
+    return sum(count.values()) - len(count), count
 
 
 #old method based on annealing, works on pegasus as each compressed node has just 2 qubits
@@ -171,7 +170,7 @@ def flatten_assignment(chains, chimera_graph, ret, tile_graph, node_to_tile):
     stall = 0
     while score > 0:
         # pick a random chain with overused qbits
-        k = random.choice([k for k, v in iteritems(ret) if any(count[x] > 1 for x in v)])
+        k = random.choice([k for k, v in ret.items() if any(count[x] > 1 for x in v)])
         oldv = ret[k]
 
         problemsubg = tile_graph.subgraph(chains[k])  # chain in tile_space as nx.Graph

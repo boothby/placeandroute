@@ -5,8 +5,6 @@ from math import exp, log
 
 import networkx as nx
 from networkx import DiGraph
-from six import iteritems, itervalues
-from six.moves import range
 from typing import Optional, List, Any, Tuple, Dict, FrozenSet, Iterable, Callable
 from typing import Set
 
@@ -59,7 +57,7 @@ def fast_steiner_tree(graph, voi_clusters, heuristic=None):
             assert b == ephdest, b
             if a  in voi_indexes or a in {ephstart, ephdest}:
                 return 0
-            return min(heuristic[cl][a] for cl in itervalues(voi_indexes))
+            return min(heuristic[cl][a] for cl in voi_indexes.values())
     else:
         heur_func = None
 
@@ -141,7 +139,7 @@ class MinMaxRouter(object):
         for _, data in self.weights_graph.nodes(data=True):
             data["usage"] = 0
 
-        for vs in itervalues(self.terminals):
+        for vs in self.terminals.values():
             self._increase_weights(vs)
 
     def increase_weights(self, nodes):
@@ -167,10 +165,10 @@ class MinMaxRouter(object):
         trees."""
 
         self.epsilon = float(epsilon)
-        self.terminals = dict((k, frozenset(self.nodetoi[n] for n in v)) for k,v in iteritems(terminals))
+        self.terminals = {k: frozenset(self.nodetoi[n] for n in v) for k,v in terminals.items()}
 
         self.term_clusters = dict()
-        for node, tset in iteritems(terminals):
+        for node, tset in terminals.items():
             clusters = []
             for conncomp in nx.connected_components(self.orig_graph.subgraph(tset)):
                 clusters.append(frozenset(self.nodetoi[n] for n in conncomp))
@@ -191,7 +189,7 @@ class MinMaxRouter(object):
         #prepare_heuristic
         if self._heuristic:
             heur_dist = dict()
-            for k, clusters in iteritems(term_clusters):
+            for k, clusters in term_clusters.items():
                 for cluster in clusters:
                     distances = nx.multi_source_dijkstra_path_length(self.weights_graph, cluster)
                     heur_dist[cluster] = distances
@@ -200,7 +198,7 @@ class MinMaxRouter(object):
 
 
         for _ in range(effort):
-            for node, terminals in iteritems(self.terminals):
+            for node, terminals in self.terminals.items():
                 newtree = steiner_tree(self.weights_graph, term_clusters[node], heuristic=heur_dist)
                 candidatetrees[node][newtree] += 1
                 self._increase_weights(newtree)
@@ -228,7 +226,7 @@ class MinMaxRouter(object):
         # (variable -> qbits) -> (qbit -> variables)
         def invertres(r):
             ret = defaultdict(list)
-            for k, vv in iteritems(r):
+            for k, vv in r.items():
                 for v in vv:
                     ret[v].append(k)
             return ret
@@ -238,7 +236,7 @@ class MinMaxRouter(object):
             # use usage - capacity instead of usage/capacity, punish only overusage
             return 1.0 + sum(
                 0.0 + bounded_exp(self.coeff * max(0, len(x) - self.weights_graph.nodes[n]["capacity"])) - 1
-                for n, x in iteritems(invertres(r)))
+                for n, x in invertres(r).items())
 
         score = calcscore(ret)
         for temp in range(effort):
@@ -255,4 +253,4 @@ class MinMaxRouter(object):
                 else:
                     ret[resource] = oldc
 
-        self.result = dict((k, frozenset(self.itonode[i] for i in v)) for k,v in iteritems(ret))
+        self.result = {k: frozenset(self.itonode[i] for i in v) for k,v in ret.items()}

@@ -5,7 +5,6 @@ from itertools import combinations
 from math import log
 
 import networkx as nx
-from six import itervalues, iteritems
 from typing import List, Any
 
 from placeandroute.routing.bonnheuristic import MinMaxRouter, bounded_exp, fast_steiner_tree
@@ -143,7 +142,7 @@ class BFSInitTactic(Tactic):
                 for v in vset:
                     vartoconst[v].append(constraint)
 
-        for cset in itervalues(vartoconst):
+        for cset in vartoconst.values():
             for v1, v2 in combinations(cset, 2):
                 cg.add_edge(v1, v2)
 
@@ -297,7 +296,7 @@ class ChainsFindTactic(Tactic):
                     ephnode = ("ephemeral", v)
                     wgraph.add_edges_from([(ephnode, chain_node) for chain_node in placement[v]], weight=0)
                     lengths = nx.single_source_dijkstra_path_length(wgraph, ephnode)
-                    for n, length in iteritems(lengths):
+                    for n, length in lengths.items():
                         score[n] += length
                     wgraph.remove_node(ephnode)
                 scores.append(score)
@@ -358,7 +357,7 @@ class IncrementalRerouteTactic(RerouteTactic):
         p = self._placement
         effort = self.effort
         placement = p.var_placement()
-        for k, vs in iteritems(p.chains):
+        for k, vs in p.chains.items():
             placement[k] = set(placement[k]).union(vs)
         p.chains = self.router.run(placement, float(p.coeff) / effort, effort)
         p.fix_usage()

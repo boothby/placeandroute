@@ -4,7 +4,6 @@ import dwave_networkx as dwnx
 import networkx as nx
 from matplotlib import pyplot as plt
 from matplotlib.cm import get_cmap
-from six import iteritems
 
 from placeandroute.tilebased.heuristic import Constraint
 
@@ -34,8 +33,8 @@ def show_result(cg, xdict, layout=dwnx.chimera_layout):
     layout = layout(cg)
     color = cycle(get_cmap("tab20").colors)
     nx.draw(cg, layout, node_color="gray", edge_color="gray")
-    for k, vs in iteritems(xdict):
+    for k, vs in xdict.items():
         col = next(color)
         subcg = cg.subgraph(vs)
-        nx.draw(subcg, layout, node_color=col, edge_color=[col] * subcg.number_of_edges())
-    plt.show()
+        nx.draw(subcg, layout, node_color=[col] * subcg.number_of_nodes(), edge_color=[col] * subcg.number_of_edges())
+    plt.savefig("result.png")

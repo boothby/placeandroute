@@ -1,7 +1,6 @@
 import networkx as nx
 from scipy.sparse.linalg import svds
 from numpy import dot, sqrt
-from six import iteritems
 
 def add_embedding(graph, d = 3):
     # type: (nx.Graph, int) -> None
@@ -22,7 +21,7 @@ class EmbeddingAstarHeuristic(object):
 
     def prepare_node_map(self, nodemap):
         self.nodemap = nodemap
-        self._mapped_emb = dict((nodemap[k], v) for k,v in iteritems(self.embedding))
+        self._mapped_emb = {nodemap[k]: v for k,v in self.embedding.items()}
 
     def __call__(self, a, b):
         return sqrt(self._mapped_emb[a],self._mapped_emb[b])
